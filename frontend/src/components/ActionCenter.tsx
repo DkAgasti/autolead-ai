@@ -387,3 +387,4 @@ export function ActionCenter({ leads, onRefresh, onOpenLead }: ActionCenterProps
     </div>
   );
 }
+

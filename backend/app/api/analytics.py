@@ -63,3 +63,4 @@ def get_analytics(db: Session = Depends(get_db)):
         source_counts=source_counts,
         recent_activity=recent_activity
     )
+

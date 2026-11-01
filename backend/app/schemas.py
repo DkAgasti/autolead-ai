@@ -106,3 +106,4 @@ class AnalyticsSummary(BaseModel):
     status_counts: Dict[str, int]
     source_counts: Dict[str, int]
     recent_activity: List[Dict[str, Any]]
+

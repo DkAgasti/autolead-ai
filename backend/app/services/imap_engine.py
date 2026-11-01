@@ -274,3 +274,4 @@ async def poll_imap_inbox() -> Dict[str, Any]:
         return {"status": "error", "message": str(e)}
     finally:
         db.close()
+

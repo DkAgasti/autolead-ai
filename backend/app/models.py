@@ -78,3 +78,4 @@ class SystemLog(Base):
     message = Column(Text, nullable=False)
     details = Column(Text, nullable=True)       # JSON string or stacktrace
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+

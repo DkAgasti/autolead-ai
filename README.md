@@ -222,7 +222,10 @@ source backend/venv/bin/activate
 pip install -r backend/requirements.txt
 
 # Run FastAPI server
-PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+uvicorn main:app --reload --port 8000
+
+# Kill the running port
+kill -9 $(lsof -t -i:8000)
 ```
 
 The backend starts at `http://127.0.0.1:8000` with Swagger docs at `http://127.0.0.1:8000/docs`.
@@ -281,3 +284,4 @@ Open your browser at `http://localhost:3000`.
    ```
 4. **Test SMTP / IMAP Connection**:
    In the Dashboard, click the **Settings** icon (top right) and click **"Test SMTP Connection"** and **"Test IMAP Connection"**.
+

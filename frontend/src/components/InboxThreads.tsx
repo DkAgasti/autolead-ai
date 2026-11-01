@@ -246,3 +246,4 @@ export function InboxThreads({ leads, onRefresh, onOpenLead }: InboxThreadsProps
     </div>
   );
 }
+

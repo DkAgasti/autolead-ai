@@ -71,3 +71,4 @@ def seed_demo_leads(db: Session = Depends(get_db)):
             added += 1
     db.commit()
     return {"status": "success", "added_count": added}
+

@@ -28,17 +28,26 @@ interface LeadDetailModalProps {
 }
 
 export function LeadDetailModal({ lead, onClose, onRefresh }: LeadDetailModalProps) {
-  if (!lead) return null;
-
   const [activeTab, setActiveTab] = useState<'pitch' | 'audit' | 'original' | 'thread'>('pitch');
-  const [editedSubject, setEditedSubject] = useState(lead.subject_line || '');
-  const [editedBody, setEditedBody] = useState(lead.email_body || '');
-  const [editedEmail, setEditedEmail] = useState(lead.email || '');
+  const [editedSubject, setEditedSubject] = useState(lead?.subject_line || '');
+  const [editedBody, setEditedBody] = useState(lead?.email_body || '');
+  const [editedEmail, setEditedEmail] = useState(lead?.email || '');
   const [replyText, setReplyText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; success: boolean } | null>(null);
+
+  React.useEffect(() => {
+    if (lead) {
+      setEditedSubject(lead.subject_line || '');
+      setEditedBody(lead.email_body || '');
+      setEditedEmail(lead.email || '');
+      setStatusMsg(null);
+    }
+  }, [lead]);
+
+  if (!lead) return null;
 
   // Parse pain points
   let painPoints: string[] = [];
@@ -479,3 +488,4 @@ export function LeadDetailModal({ lead, onClose, onRefresh }: LeadDetailModalPro
     </div>
   );
 }
+

@@ -75,3 +75,4 @@ async def audit_website(url: str) -> Dict[str, Any]:
         ]
 
     return result
+

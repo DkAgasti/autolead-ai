@@ -79,3 +79,4 @@ export interface AppSettings {
   email_throttle_min_sec?: number;
   email_throttle_max_sec?: number;
 }
+

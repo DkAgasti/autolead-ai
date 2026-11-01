@@ -185,19 +185,23 @@ export default function DashboardPage() {
       </footer>
 
       {/* Modals */}
-      <LeadDetailModal
-        lead={selectedLead}
-        onClose={() => setSelectedLead(null)}
-        onRefresh={loadData}
-      />
+      {selectedLead && (
+        <LeadDetailModal
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onRefresh={loadData}
+        />
+      )}
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => {
-          setIsSettingsOpen(false);
-          loadData();
-        }}
-      />
+      {isSettingsOpen && (
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => {
+            setIsSettingsOpen(false);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }

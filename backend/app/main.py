@@ -84,3 +84,4 @@ def root():
         "docs": "/docs",
         "protocol": "Direct Native SMTP & IMAP (Zero 3rd party email APIs)"
     }
+

@@ -25,8 +25,6 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  if (!isOpen) return null;
-
   const [formData, setFormData] = useState<AppSettings>({
     gemini_api_key: '',
     email_user: '',
@@ -53,6 +51,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
     async function load() {
       try {
         const data = await fetchSettings();
@@ -64,7 +63,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
     }
     load();
-  }, []);
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const handleChange = (field: keyof AppSettings, val: any) => {
     setFormData((prev) => ({ ...prev, [field]: val }));
@@ -426,3 +427,4 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     </div>
   );
 }
+

@@ -316,3 +316,4 @@ async def run_harvester(db=None) -> Dict[str, Any]:
     finally:
         if should_close_db:
             db.close()
+
