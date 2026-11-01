@@ -1,6 +1,6 @@
 import { Lead, AnalyticsData, AppSettings } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
 export async function fetchAnalytics(): Promise<AnalyticsData> {
   const res = await fetch(`${API_BASE}/api/analytics`, { cache: 'no-store' });
