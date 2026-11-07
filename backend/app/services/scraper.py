@@ -66,10 +66,10 @@ def extract_url(text: str) -> Optional[str]:
     return None
 
 async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
-    """Scrapes a Reddit subreddit RSS feed with custom user-agent."""
-    url = f"https://www.reddit.com/r/{sub_name}/new/.rss?limit=25"
+    """Scrapes a Reddit subreddit RSS feed with compliant user-agent."""
+    url = f"https://www.reddit.com/r/{sub_name}/new/.rss?sort=new"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 AutoLeadHarvester/1.0"
+        "User-Agent": "python:autolead.ai.harvester:v1.0 (by /u/autolead_bot)"
     }
     leads = []
     try:
@@ -80,14 +80,11 @@ async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
                 for entry in feed.entries:
                     title = entry.get("title", "")
                     content = entry.get("summary", "")
-                    # Strip HTML tags
                     soup = BeautifulSoup(content, "html.parser")
                     text_content = soup.get_text(separator=" ").strip()
                     
-                    # Filter: Hiring or Looking for
                     combined_text = f"{title} {text_content}".lower()
                     if "[hiring]" in combined_text or "hiring" in combined_text or "looking for" in combined_text:
-                        # Exclude obvious freelance self-promos like [For Hire]
                         if "[for hire]" in combined_text and "[hiring]" not in combined_text:
                             continue
                         
@@ -116,24 +113,24 @@ async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
 
 async def scrape_google_dorks_and_web() -> List[Dict[str, Any]]:
     """
-    Module A part 2: Structured queries to find clients seeking web developers/designers.
-    Queries Hacker News Who's Hiring and remote job boards feeds.
+    Module A part 2: Queries live hiring feeds across WeWorkRemotely, HackerNews, and tech job boards.
     """
     leads = []
-    # HackerNews hiring RSS and tech job query feeds
     feeds = [
+        ("WeWorkRemotely Web Dev", "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss", "Web"),
         ("HN Who Is Hiring", "https://hnrss.org/whoishiring/jobs", "Web"),
-        ("RemoteOK Web Dev", "https://remoteok.com/remote-dev-jobs.rss", "Web")
     ]
-    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AutoLeadQuery/1.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     
     for name, feed_url, source_name in feeds:
         try:
-            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 res = await client.get(feed_url, headers=headers)
                 if res.status_code == 200:
                     parsed = feedparser.parse(res.text)
-                    for item in parsed.entries[:10]:
+                    for item in parsed.entries[:20]:
                         title = item.get("title", "")
                         desc = item.get("summary", "")
                         soup = BeautifulSoup(desc, "html.parser")
@@ -143,13 +140,20 @@ async def scrape_google_dorks_and_web() -> List[Dict[str, Any]]:
                         url = extract_url(clean_text)
                         country, tz = detect_country_and_tz(clean_text)
                         
+                        # Clean company/author name
+                        author = item.get("author", "")
+                        if not author and ":" in title:
+                            author = title.split(":")[0].strip()
+                        if not author:
+                            author = "Hiring Team"
+
                         leads.append({
                             "source": source_name,
                             "source_url": item.get("link", ""),
                             "title": title[:300],
                             "raw_text": clean_text[:4000],
-                            "author_id": item.get("author", "HiringManager"),
-                            "email": email or f"contact@{title[:10].replace(' ', '').lower()}.placeholder",
+                            "author_id": author,
+                            "email": email or f"contact@{author.replace(' ', '').lower()[:12]}.placeholder",
                             "website_url": url,
                             "detected_country": country,
                             "timezone": tz,

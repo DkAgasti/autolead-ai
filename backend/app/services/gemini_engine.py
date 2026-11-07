@@ -115,16 +115,27 @@ JOB POST TEXT:
     if api_key:
         try:
             client = genai.Client(api_key=api_key)
-            # Use gemini-2.5-flash as specified in requirements
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                    temperature=0.4,
-                )
+            config = types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                temperature=0.4,
             )
+            response = None
+            for model_candidate in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest"]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_candidate,
+                        contents=user_prompt,
+                        config=config
+                    )
+                    if response and response.text:
+                        break
+                except Exception as me:
+                    logger.warning(f"Model {model_candidate} attempt notice: {me}")
+                    continue
+
+            if not response or not response.text:
+                raise ValueError("No response generated from Gemini models")
 
             text_output = response.text.strip()
             # Clean possible markdown fence
@@ -251,14 +262,27 @@ Your Tasks:
     if api_key:
         try:
             client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3,
-                )
+            config = types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3,
             )
+            response = None
+            for model_candidate in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest"]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_candidate,
+                        contents=prompt,
+                        config=config
+                    )
+                    if response and response.text:
+                        break
+                except Exception as me:
+                    logger.warning(f"Reply model {model_candidate} notice: {me}")
+                    continue
+
+            if not response or not response.text:
+                raise ValueError("No response generated from Gemini models")
+
             text_output = response.text.strip()
             if text_output.startswith("```json"):
                 text_output = text_output[7:]

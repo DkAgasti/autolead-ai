@@ -148,3 +148,15 @@ export async function triggerQueueDispatch(): Promise<{ status: string; message:
   return res.json();
 }
 
+export async function sendTestEmail(): Promise<{ status: string; message: string; message_id?: string }> {
+  const res = await fetch(`${API_BASE}/api/system/send-test-email`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to send test email');
+  return res.json();
+}
+
+export async function runAutopilot(): Promise<{ status: string; scraped: number; analyzed: number }> {
+  const res = await fetch(`${API_BASE}/api/system/run-autopilot`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to run autopilot');
+  return res.json();
+}
+

@@ -72,3 +72,65 @@ def seed_demo_leads(db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success", "added_count": added}
 
+@router.post("/send-test-email")
+async def send_test_email(db: Session = Depends(get_db)):
+    """Dispatches a test cold pitch to the configured EMAIL_USER to verify SMTP delivery."""
+    from app.services.smtp_engine import send_native_email_async, get_smtp_credentials
+    creds = get_smtp_credentials()
+    if not creds.get("user"):
+        return {"status": "error", "message": "EMAIL_USER is not configured in .env"}
+
+    recipient = creds["user"]
+    subject = f"AutoLead AI Test: Outreach Verification for {creds.get('sender_name', 'CodePro')}"
+    body = (
+        f"Hi there,\n\n"
+        f"This is a verified test email sent directly via Google SMTP (smtp.gmail.com:465 SSL) "
+        f"using your configured App Password.\n\n"
+        f"Your AutoLead AI cold outreach engine is connected and ready to send pitches.\n\n"
+        f"Sender: {creds.get('sender_name')}\n"
+        f"Recipient: {recipient}\n"
+        f"Protocol: Direct Native smtplib (No 3rd party APIs)\n\n"
+        f"Best regards,\nAutoLead AI Agent"
+    )
+
+    success, msg_info, message_id = await send_native_email_async(
+        recipient_email=recipient,
+        subject=subject,
+        body_text=body
+    )
+
+    if success:
+        log = SystemLog(
+            level="SUCCESS",
+            module="SMTP",
+            message=f"Test email successfully delivered to {recipient}",
+            details=f"Message-ID: {message_id}"
+        )
+        db.add(log)
+        db.commit()
+        return {"status": "success", "message": f"Test email delivered to {recipient}!", "message_id": message_id}
+    else:
+        return {"status": "error", "message": msg_info}
+
+@router.post("/run-autopilot")
+async def run_autopilot_pipeline(db: Session = Depends(get_db)):
+    """
+    1-Click Auto-Pilot:
+    1. Scrapes fresh live leads from WeWorkRemotely, HackerNews, and Reddit
+    2. Runs Gemini AI analysis & cold pitch generation on all raw leads
+    """
+    from app.api.leads import bulk_analyze_raw_leads
+
+    # 1. Scrape
+    scrape_res = await run_harvester(db)
+
+    # 2. Analyze
+    analyze_res = await bulk_analyze_raw_leads(db)
+
+    return {
+        "status": "success",
+        "scraped": scrape_res.get("added", 0),
+        "analyzed": analyze_res.get("analyzed_count", 0)
+    }
+
+

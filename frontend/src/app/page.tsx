@@ -6,7 +6,9 @@ import {
   fetchAnalytics,
   fetchLeads,
   triggerHarvest,
-  triggerPollImap
+  triggerPollImap,
+  sendTestEmail,
+  runAutopilot
 } from '@/lib/api';
 import { Header } from '@/components/Header';
 import { AnalyticsOverview } from '@/components/AnalyticsOverview';
@@ -28,6 +30,8 @@ export default function DashboardPage() {
   // Triggering state
   const [isScraping, setIsScraping] = useState(false);
   const [isPollingImap, setIsPollingImap] = useState(false);
+  const [isAutopilotRunning, setIsAutopilotRunning] = useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'info') => {
@@ -81,6 +85,37 @@ export default function DashboardPage() {
     }
   };
 
+  const handleRunAutopilot = async () => {
+    setIsAutopilotRunning(true);
+    try {
+      const res = await runAutopilot();
+      showToast(`Auto-Pilot completed! Scraped ${res.scraped} fresh leads & analyzed ${res.analyzed} pitches with Gemini.`, 'success');
+      loadData();
+      setActiveTab('action_center');
+    } catch (err: any) {
+      showToast(err.message || 'Auto-Pilot failed', 'error');
+    } finally {
+      setIsAutopilotRunning(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    setIsSendingTestEmail(true);
+    try {
+      const res = await sendTestEmail();
+      if (res.status === 'success') {
+        showToast(res.message, 'success');
+      } else {
+        showToast(res.message, 'error');
+      }
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Test email failed', 'error');
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
   const handleSelectStatusFilter = (st: string) => {
     setStatusFilter(st);
     setActiveTab('pipeline');
@@ -103,8 +138,12 @@ export default function DashboardPage() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onTriggerScrape={handleTriggerScrape}
         onTriggerImap={handleTriggerImap}
+        onRunAutopilot={handleRunAutopilot}
+        onSendTestEmail={handleSendTestEmail}
         isScraping={isScraping}
         isPollingImap={isPollingImap}
+        isAutopilotRunning={isAutopilotRunning}
+        isSendingTestEmail={isSendingTestEmail}
         unreviewedCount={unreviewedCount}
         analyzedCount={analyzedCount}
       />

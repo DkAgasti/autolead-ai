@@ -11,7 +11,8 @@ import {
   LayoutDashboard,
   KanbanSquare,
   CheckCircle2,
-  ShieldCheck
+  ShieldCheck,
+  Send
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -20,8 +21,12 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onTriggerScrape: () => void;
   onTriggerImap: () => void;
+  onRunAutopilot: () => void;
+  onSendTestEmail: () => void;
   isScraping: boolean;
   isPollingImap: boolean;
+  isAutopilotRunning: boolean;
+  isSendingTestEmail: boolean;
   unreviewedCount?: number;
   analyzedCount?: number;
 }
@@ -32,8 +37,12 @@ export function Header({
   onOpenSettings,
   onTriggerScrape,
   onTriggerImap,
+  onRunAutopilot,
+  onSendTestEmail,
   isScraping,
   isPollingImap,
+  isAutopilotRunning,
+  isSendingTestEmail,
   unreviewedCount = 0,
   analyzedCount = 0
 }: HeaderProps) {
@@ -123,6 +132,26 @@ export function Header({
 
           {/* Quick Actions */}
           <div className="flex items-center space-x-2">
+            <button
+              onClick={onRunAutopilot}
+              disabled={isAutopilotRunning}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-md shadow-purple-500/20 disabled:opacity-50 transition"
+              title="1-Click Auto-Pilot: Scrapes live feeds & analyzes all leads with Gemini"
+            >
+              <Zap className={`w-3.5 h-3.5 text-amber-300 ${isAutopilotRunning ? 'animate-spin' : ''}`} />
+              <span>{isAutopilotRunning ? 'Auto-Pilot Running...' : 'Run Auto-Pilot'}</span>
+            </button>
+
+            <button
+              onClick={onSendTestEmail}
+              disabled={isSendingTestEmail}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 bg-slate-900 hover:bg-slate-800 border border-slate-750 disabled:opacity-50 transition"
+              title="Send a real test outreach email to your Gmail to verify SMTP delivery"
+            >
+              <Send className={`w-3.5 h-3.5 text-blue-400 ${isSendingTestEmail ? 'animate-bounce' : ''}`} />
+              <span className="hidden lg:inline">{isSendingTestEmail ? 'Sending...' : 'Test My Email'}</span>
+            </button>
+
             <button
               onClick={onTriggerScrape}
               disabled={isScraping}
