@@ -6,6 +6,7 @@ import random
 import asyncio
 import logging
 import pytz
+import dns.resolver
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, Any, Optional, Tuple
@@ -148,6 +149,45 @@ def build_mime_email(
 
     return msg, message_id
 
+def verify_email_domain_has_mx(email_address: str) -> Tuple[bool, str]:
+    """
+    Validates that the recipient domain has active, deliverable DNS MX records.
+    Catches Null MX (RFC 7505) and non-existent domains BEFORE attempting SMTP send.
+    Protects user's Gmail sender reputation from Mailer-Daemon bounce backs.
+    """
+    if not email_address or "@" not in email_address:
+        return False, "Invalid email format (missing @)"
+
+    parts = email_address.strip().split("@")
+    if len(parts) != 2 or not parts[1]:
+        return False, "Malformed email address"
+
+    domain = parts[1].lower()
+
+    # Reject placeholder domains
+    if domain.endswith(".placeholder") or "reddit-contact" in domain or "weworkremotely" in domain:
+        return False, "Placeholder address is not a deliverable mailbox"
+
+    try:
+        answers = dns.resolver.resolve(domain, 'MX', lifetime=5)
+        for rdata in answers:
+            exchange = str(rdata.exchange).strip('.')
+            # Null MX (RFC 7505) explicitly declares domain does not receive email
+            if not exchange or exchange == '.':
+                return False, f"Domain '{domain}' has Null MX (does not receive email according to RFC 7505)"
+            return True, f"Valid MX record found: {exchange}"
+        return False, f"Domain '{domain}' has no MX records"
+    except dns.resolver.NXDOMAIN:
+        return False, f"Domain '{domain}' does not exist (NXDOMAIN)"
+    except dns.resolver.NoAnswer:
+        return False, f"Domain '{domain}' has no MX records"
+    except dns.resolver.Timeout:
+        logger.warning(f"DNS lookup timed out for {domain}; proceeding cautiously")
+        return True, "DNS lookup timed out"
+    except Exception as e:
+        logger.warning(f"DNS resolution error for {domain}: {e}")
+        return False, f"DNS lookup failed: {str(e)}"
+
 def send_native_email_sync(
     recipient_email: str,
     subject: str,
@@ -161,14 +201,17 @@ def send_native_email_sync(
     creds = get_smtp_credentials()
 
     if not creds["user"] or not creds["password"]:
-        # If no credentials yet in testing, simulate and return mock Message-ID
-        mock_id = email.utils.make_msgid(domain="gmail.com")
-        return True, "Simulated send (credentials pending in Settings)", mock_id
+        return False, "SMTP credentials missing: Please provide EMAIL_USER and EMAIL_APP_PASSWORD.", None
 
-    # If recipient has a placeholder domain, simulate safe delivery
+    # 1. Reject placeholder addresses immediately - no simulation!
     if recipient_email.endswith(".placeholder") or "@reddit-contact." in recipient_email:
-        mock_id = email.utils.make_msgid(domain="gmail.com")
-        return True, f"Simulated delivery to placeholder recipient {recipient_email}", mock_id
+        return False, f"Cannot dispatch: {recipient_email} is a placeholder address (no real email provided)", None
+
+    # 2. Perform DNS MX Verification before connecting to Google SMTP!
+    has_mx, mx_reason = verify_email_domain_has_mx(recipient_email)
+    if not has_mx:
+        logger.warning(f"Aborting SMTP dispatch to {recipient_email}: {mx_reason}")
+        return False, f"Undeliverable recipient domain: {mx_reason}", None
 
     try:
         msg, message_id = build_mime_email(

@@ -25,12 +25,12 @@ interface InboxThreadsProps {
 }
 
 export function InboxThreads({ leads, onRefresh, onOpenLead }: InboxThreadsProps) {
-  // Aggregate all inbound threads from leads
+  // Aggregate all inbound client reply threads from leads (excluding bounce notifications)
   const inboundItems: { lead: Lead; thread: EmailThread }[] = [];
   leads.forEach((lead) => {
     if (lead.threads) {
       lead.threads.forEach((t) => {
-        if (t.direction === 'INBOUND') {
+        if (t.direction === 'INBOUND' && t.status !== 'BOUNCED') {
           inboundItems.push({ lead, thread: t });
         }
       });

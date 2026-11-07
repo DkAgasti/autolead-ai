@@ -86,6 +86,8 @@ export function AnalyticsOverview({
     { key: 'SCHEDULED', label: 'Timezone Queued', count: analytics.status_counts['SCHEDULED'] || 0, color: 'bg-amber-900/50 text-amber-300 border border-amber-700/50' },
     { key: 'SENT', label: 'Sent via SMTP', count: analytics.status_counts['SENT'] || 0, color: 'bg-blue-900/50 text-blue-300 border border-blue-700/50' },
     { key: 'REPLIED', label: 'Client Replied', count: analytics.status_counts['REPLIED'] || 0, color: 'bg-emerald-900/50 text-emerald-300 border border-emerald-700/50' },
+    { key: 'BOUNCED', label: 'Bounced / Invalid', count: analytics.status_counts['BOUNCED'] || 0, color: 'bg-red-950/60 text-red-400 border border-red-800/50' },
+    { key: 'NEEDS_EMAIL', label: 'No Email Found', count: analytics.status_counts['NEEDS_EMAIL'] || 0, color: 'bg-zinc-800 text-zinc-400 border border-zinc-700' },
     { key: 'FILTERED_OUT', label: 'Filtered Out', count: analytics.status_counts['FILTERED_OUT'] || 0, color: 'bg-rose-900/40 text-rose-300 border border-rose-800/40' },
   ];
 

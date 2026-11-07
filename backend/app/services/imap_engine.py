@@ -4,6 +4,7 @@ import email.header
 import datetime
 import logging
 import asyncio
+import re
 from typing import Dict, Any, List, Optional, Tuple
 
 from app.config import settings
@@ -177,17 +178,72 @@ async def poll_imap_inbox() -> Dict[str, Any]:
         unread_emails = await loop.run_in_executor(None, fetch_unread_emails_sync)
 
         for incoming in unread_emails:
+            sender_lower = incoming.get("sender", "").lower()
+            subject_lower = incoming.get("subject", "").lower()
+            full_sender_lower = incoming.get("full_sender", "").lower()
+
+            is_bounce = (
+                "mailer-daemon" in sender_lower
+                or "postmaster" in sender_lower
+                or "mailer-daemon" in full_sender_lower
+                or "mail delivery subsystem" in full_sender_lower
+                or "address not found" in subject_lower
+                or "delivery status notification" in subject_lower
+                or "undelivered mail" in subject_lower
+                or "returned mail" in subject_lower
+                or "failure notice" in subject_lower
+            )
+
             # 1. Match by In-Reply-To or References matching lead's message_id
             matched_lead = None
             ref = incoming.get("in_reply_to") or incoming.get("references")
             if ref:
                 matched_lead = db.query(Lead).filter(Lead.message_id.isnot(None), Lead.message_id.contains(ref.strip())).first()
 
-            # 2. Match by Sender Email
-            if not matched_lead and incoming.get("sender"):
+            # If bounce, extract failed recipient address from bounce message body
+            if not matched_lead and is_bounce:
+                body = incoming.get("body_text", "")
+                found_emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', body)
+                for em in found_emails:
+                    if not any(x in em.lower() for x in ["mailer-daemon", "googlemail", "gmail.com"]):
+                        matched_lead = db.query(Lead).filter(Lead.email == em).first()
+                        if matched_lead:
+                            break
+
+            # 2. Match by Sender Email (only if not a bounce notification!)
+            if not matched_lead and not is_bounce and incoming.get("sender"):
                 matched_lead = db.query(Lead).filter(Lead.email == incoming["sender"]).first()
 
             if matched_lead:
+                if is_bounce:
+                    logger.warning(f"Lead #{matched_lead.id} ({matched_lead.email}) bounced: {incoming['subject']}")
+                    matched_lead.status = "BOUNCED"
+                    matched_lead.updated_at = datetime.datetime.utcnow()
+
+                    bounce_thread = EmailThread(
+                        lead_id=matched_lead.id,
+                        direction="INBOUND",
+                        sender=incoming["sender"],
+                        recipient=creds["user"] or "me",
+                        subject=f"Delivery Failure: {incoming['subject']}",
+                        body_text=incoming.get("body_text", "")[:600],
+                        message_id=incoming.get("message_id"),
+                        in_reply_to=incoming.get("in_reply_to"),
+                        status="BOUNCED",
+                        created_at=datetime.datetime.utcnow()
+                    )
+                    db.add(bounce_thread)
+
+                    log = SystemLog(
+                        level="WARNING",
+                        module="IMAP",
+                        message=f"Bounced email detected for Lead #{matched_lead.id} ({matched_lead.email})",
+                        details=incoming["subject"]
+                    )
+                    db.add(log)
+                    db.commit()
+                    continue
+
                 # Update lead status to REPLIED
                 matched_lead.status = "REPLIED"
                 matched_lead.updated_at = datetime.datetime.utcnow()

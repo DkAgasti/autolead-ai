@@ -33,6 +33,8 @@ const STATUS_COLUMNS: { key: LeadStatus; label: string; badge: string }[] = [
   { key: 'SCHEDULED', label: 'Timezone Queued', badge: 'bg-amber-900/40 text-amber-300 border-amber-700/50' },
   { key: 'SENT', label: 'Dispatched via SMTP', badge: 'bg-blue-900/40 text-blue-300 border-blue-700/50' },
   { key: 'REPLIED', label: 'Replied by Client', badge: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  { key: 'BOUNCED', label: 'Bounced / Invalid MX', badge: 'bg-red-950/60 text-red-400 border-red-800/50' },
+  { key: 'NEEDS_EMAIL', label: 'No Email in Post', badge: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
   { key: 'FILTERED_OUT', label: 'Filtered Out', badge: 'bg-rose-900/40 text-rose-300 border-rose-800/40' },
 ];
 

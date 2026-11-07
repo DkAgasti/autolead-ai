@@ -32,7 +32,7 @@ def get_analytics(db: Session = Depends(get_db)):
 
     # Status distribution
     status_counts = {}
-    for st in ["RAW", "ANALYZED", "FILTERED_OUT", "SCHEDULED", "SENT", "REPLIED"]:
+    for st in ["RAW", "ANALYZED", "FILTERED_OUT", "SCHEDULED", "SENT", "REPLIED", "BOUNCED", "NEEDS_EMAIL"]:
         status_counts[st] = db.query(Lead).filter(Lead.status == st).count()
 
     # Source distribution

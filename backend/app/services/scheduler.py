@@ -180,7 +180,11 @@ async def scheduled_outbound_queue_dispatcher():
                         logger.info(f"Lead #{lead.id} waiting for local timezone window ({lead.timezone})...")
                         continue
 
-                if not lead.email:
+                if not lead.email or lead.email.endswith(".placeholder") or "@reddit-contact." in lead.email:
+                    logger.info(f"Lead #{lead.id} has no real email address; moving to NEEDS_EMAIL")
+                    lead.status = "NEEDS_EMAIL"
+                    lead.updated_at = datetime.datetime.utcnow()
+                    db.commit()
                     continue
 
                 subj = lead.subject_line or f"Collaboration regarding {lead.title[:30]}"
@@ -229,19 +233,22 @@ async def scheduled_outbound_queue_dispatcher():
                     db.add(log)
                     db.commit()
 
-                    # Throttle delay: only for real outbound emails to prevent spam flags.
-                    # For placeholder simulations, use 1 second to avoid UI freezes.
-                    is_placeholder = (
-                        lead.email.endswith(".placeholder")
-                        or "@reddit-contact." in lead.email
-                        or "@weworkremotely." in lead.email
-                    )
-                    if not is_placeholder:
-                        await anti_ban_delay()
-                    else:
-                        await asyncio.sleep(1)
+                    # Anti-ban delay between consecutive real emails
+                    await anti_ban_delay()
                 else:
-                    logger.error(f"Failed to dispatch to {lead.email}: {msg_info}")
+                    logger.warning(f"Outbound dispatch not possible for {lead.email}: {msg_info}")
+                    if "Undeliverable recipient domain" in msg_info or "Null MX" in msg_info or "NXDOMAIN" in msg_info:
+                        lead.status = "BOUNCED"
+                    else:
+                        lead.status = "FAILED"
+                    lead.updated_at = datetime.datetime.utcnow()
+                    log = SystemLog(
+                        level="WARNING",
+                        module="SMTP",
+                        message=f"Blocked dispatch to {lead.email}: {msg_info}"
+                    )
+                    db.add(log)
+                    db.commit()
 
         except Exception as e:
             logger.error(f"Error in outbound dispatcher: {e}")

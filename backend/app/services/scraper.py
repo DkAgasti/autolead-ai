@@ -56,13 +56,11 @@ def extract_email(text: str) -> Optional[str]:
 
 def extract_url(text: str) -> Optional[str]:
     """Extract website or portfolio link from text."""
-    urls = re.findall(r'(?:https?://|www\.)[^\s()<>]+(?:\([\w\d]+\)|([^[:punct:]\s]|/))', text)
+    urls = re.findall(r'https?://[^\s()<>"]+', text)
     for u in urls:
-        raw_u = u if isinstance(u, str) else u[0]
-        if raw_u and not any(x in raw_u.lower() for x in ["reddit.com", "redd.it", "imgur.com", "preview.redd"]):
-            if not raw_u.startswith("http"):
-                raw_u = "https://" + raw_u
-            return raw_u
+        clean = u.rstrip('.,;:)\'\"')
+        if not any(x in clean.lower() for x in ["reddit.com", "redd.it", "imgur.com", "preview.redd"]):
+            return clean
     return None
 
 async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
@@ -101,7 +99,7 @@ async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
                             "title": title,
                             "raw_text": text_content[:4000],
                             "author_id": author or "reddit_user",
-                            "email": email or f"{author or 'client'}@reddit-contact.placeholder",
+                            "email": email,
                             "website_url": website,
                             "detected_country": country,
                             "timezone": tz,
@@ -153,7 +151,7 @@ async def scrape_google_dorks_and_web() -> List[Dict[str, Any]]:
                             "title": title[:300],
                             "raw_text": clean_text[:4000],
                             "author_id": author,
-                            "email": email or f"contact@{author.replace(' ', '').lower()[:12]}.placeholder",
+                            "email": email,
                             "website_url": url,
                             "detected_country": country,
                             "timezone": tz,
@@ -175,7 +173,7 @@ def get_rich_curated_seed_leads() -> List[Dict[str, Any]]:
             "title": "[Hiring] Looking for a Full-Stack Next.js / Tailwind developer to revamp SaaS landing page & dashboard",
             "raw_text": "Hey everyone, we run HyperMetrics (https://hypermetrics-app.io). We're seeking a skilled Next.js developer to revamp our marketing landing page and build a high-performance analytics dashboard. Our current load time is lagging and we need someone who understands Core Web Vitals and clean UI design. Budget is $3,500 - $5,000. Please contact marcus@hypermetrics-app.io or DM with your portfolio and availability. Location: New York (EST preferred).",
             "author_id": "marcus_founder",
-            "email": "marcus@hypermetrics-app.io",
+            "email": None,
             "website_url": "https://hypermetrics-app.io",
             "detected_country": "United States",
             "timezone": "America/New_York",
@@ -187,7 +185,7 @@ def get_rich_curated_seed_leads() -> List[Dict[str, Any]]:
             "title": "Hiring: Senior Shopify & React Engineer for D2C Brand Replatforming",
             "raw_text": "We are expanding our luxury skincare brand Lumina Beauty (https://luminabeauty.co). We are looking for a dedicated web developer/designer to overhaul our mobile storefront, optimize checkout speed, and integrate custom product bundles. Need someone who can start next week. Reach out directly at hiring@luminabeauty.co with your recent e-commerce builds. Based in Los Angeles, PST.",
             "author_id": "sarah_lumina",
-            "email": "hiring@luminabeauty.co",
+            "email": None,
             "website_url": "https://luminabeauty.co",
             "detected_country": "United States",
             "timezone": "America/Los_Angeles",
@@ -199,7 +197,7 @@ def get_rich_curated_seed_leads() -> List[Dict[str, Any]]:
             "title": "[Hiring] Need Python / FastAPI backend developer to build asynchronous web scraper & webhook pipeline",
             "raw_text": "Looking for an experienced backend engineer to architect a resilient scraping and lead ingestion pipeline using FastAPI, SQLAlchemy, and APScheduler. Must have experience with queue throttling and rate limits. Budget: $40-60/hr. Send rates and GitHub to dev-leads@cloudscale.tech. Remote, London time (GMT/BST).",
             "author_id": "cloudscale_cto",
-            "email": "dev-leads@cloudscale.tech",
+            "email": None,
             "website_url": "https://cloudscale.tech",
             "detected_country": "United Kingdom",
             "timezone": "Europe/London",
@@ -211,7 +209,7 @@ def get_rich_curated_seed_leads() -> List[Dict[str, Any]]:
             "title": "FinTech Startup seeking Founding Frontend Specialist (Next.js / TypeScript)",
             "raw_text": "We are building an automated bookkeeping assistant for creators and freelancers. Looking for a talented contract-to-perm frontend engineer who can turn Figma designs into pixel-perfect, accessible React/Next.js code. No agencies please. Inquiries to founder@ledgerflow.xyz. Based in Austin, Texas (CST).",
             "author_id": "austin_founder",
-            "email": "founder@ledgerflow.xyz",
+            "email": None,
             "website_url": "https://ledgerflow.xyz",
             "detected_country": "United States",
             "timezone": "America/Chicago",

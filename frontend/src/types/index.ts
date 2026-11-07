@@ -1,4 +1,4 @@
-export type LeadStatus = 'RAW' | 'ANALYZED' | 'FILTERED_OUT' | 'SCHEDULED' | 'SENT' | 'REPLIED';
+export type LeadStatus = 'RAW' | 'ANALYZED' | 'FILTERED_OUT' | 'SCHEDULED' | 'SENT' | 'REPLIED' | 'BOUNCED' | 'NEEDS_EMAIL';
 
 export type LeadSource = 'Reddit' | 'LinkedIn' | 'Web' | string;
 
@@ -15,7 +15,7 @@ export interface EmailThread {
   in_reply_to?: string | null;
   sentiment?: 'INTERESTED' | 'SCHEDULING' | 'NOT_INTERESTED' | 'OBJECTION' | 'NEUTRAL' | null;
   auto_reply_draft?: string | null;
-  status: 'SENT' | 'RECEIVED' | 'NEEDS_REVIEW' | 'AUTO_REPLIED';
+  status: 'SENT' | 'RECEIVED' | 'NEEDS_REVIEW' | 'AUTO_REPLIED' | 'BOUNCED';
   created_at: string;
 }
 
