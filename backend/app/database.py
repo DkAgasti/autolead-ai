@@ -39,11 +39,18 @@ if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
 elif db_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
-engine = create_engine(
-    db_url,
-    connect_args=connect_args,
-    pool_pre_ping=True
-)
+from sqlalchemy.pool import NullPool
+
+engine_kwargs = {
+    "connect_args": connect_args,
+    "pool_pre_ping": True,
+}
+
+if not db_url.startswith("sqlite"):
+    # NullPool is the official standard for Supabase PgBouncer pooler to avoid connection exhaustion
+    engine_kwargs["poolclass"] = NullPool
+
+engine = create_engine(db_url, **engine_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
