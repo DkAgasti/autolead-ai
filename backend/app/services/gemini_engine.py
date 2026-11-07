@@ -50,12 +50,25 @@ async def analyze_lead_with_gemini(
     audit_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Passes a post to Gemini 2.5 Flash via google-genai SDK.
+    Passes a post to Gemini 3/3.5 Flash via google-genai SDK.
     Filters intent, extracts niche & pain points, applies website audit,
     and drafts an ultra-personalized 100-130 word cold pitch.
     """
     api_key = get_effective_gemini_api_key()
     links = get_effective_links()
+
+    # Clean title if it comes from HackerNews or Reddit comment headers
+    clean_title = title
+    if "new comment by" in title.lower() and raw_text:
+        first_line = raw_text.strip().split("\n")[0].strip()
+        if len(first_line) > 5 and not first_line.lower().startswith("new comment by"):
+            clean_title = first_line[:100]
+
+    # Validate website_url - discard malformed or broken URLs like 'https:///'
+    if website_url:
+        domain_part = website_url.replace("https://", "").replace("http://", "").strip("/")
+        if "." not in domain_part or len(domain_part) < 4:
+            website_url = None
 
     audit_context = ""
     if website_url and audit_data and audit_data.get("critiques"):
@@ -70,7 +83,7 @@ Instruction: Incorporate 1-2 of these technical critiques smoothly into the pitc
     else:
         audit_context = """
 NO WEBSITE URL PROVIDED.
-Instruction: Outline 3 crisp commercial benefits (e.g. speed to market, conversion lift, zero technical debt) tailored directly to the client's industry/use-case in the audit_summary.
+Instruction: Outline 2-3 specific commercial/technical advantages (e.g. Next.js SSR performance, conversion rate optimization, clean API architecture) tailored to their job post.
 """
 
     system_instruction = f"""
@@ -88,10 +101,10 @@ Rules:
 2. Extract specific technical deliverables (e.g. Next.js landing page, Shopify overhaul, API bug fix, database migration).
 3. The email body must:
    - Be strictly between 100 and 130 words.
-   - Address the client respectfully (guess name or use "Hi there" / "Hey [Name]").
-   - Acknowledge their exact project context without copying sentences verbatim.
-   - Mention the relevant website critique or commercial benefits.
-   - Provide a low-friction Call to Action (e.g., "Are you open to a quick 10-minute sync this Thursday, or feel free to check out my recent builds at {links['portfolio_url']}").
+   - Address the client respectfully (e.g. "Hi [Company/Team]" or "Hi [Name]"). NEVER write "I came across your post about New comment by...".
+   - Refer directly to the company name or exact role they are hiring for.
+   - Mention specific technical deliverables without generic buzzwords.
+   - Provide a low-friction Call to Action (e.g., "Are you open to a quick 10-minute sync this week? You can also review some of my recent work at {links['portfolio_url']}").
    - Tone: Engineer-to-founder, concise, competent, zero cheesy fluff or corporate buzzwords.
 4. Return ONLY valid JSON in this exact structure:
 {{
@@ -105,7 +118,7 @@ Rules:
 """
 
     user_prompt = f"""
-JOB POST TITLE: {title}
+JOB POST TITLE: {clean_title}
 JOB POST TEXT:
 {raw_text}
 
@@ -121,7 +134,7 @@ JOB POST TEXT:
                 temperature=0.4,
             )
             response = None
-            for model_candidate in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-flash-latest"]:
+            for model_candidate in ["gemini-3-flash-preview", "gemini-3.5-flash", "gemini-3.8-flash"]:
                 try:
                     response = client.models.generate_content(
                         model=model_candidate,
@@ -149,17 +162,17 @@ JOB POST TEXT:
             data = json.loads(text_output.strip())
             return {
                 "is_hiring": bool(data.get("is_hiring", True)),
-                "lead_name": str(data.get("lead_name", "Founder")),
+                "lead_name": str(data.get("lead_name", "Hiring Team")),
                 "pain_points": data.get("pain_points", []),
                 "audit_summary": str(data.get("audit_summary", "")),
-                "subject_line": str(data.get("subject_line", f"Quick thought regarding {title[:35]}")),
+                "subject_line": str(data.get("subject_line", f"Regarding your {clean_title[:30]} opening")),
                 "email_body": str(data.get("email_body", ""))
             }
         except Exception as e:
             logger.error(f"Gemini API error: {e}. Falling back to rule-based engine.")
 
     # High-quality fallback if Gemini API key is not configured or in offline test mode
-    return generate_fallback_analysis(title, raw_text, website_url, audit_data, links)
+    return generate_fallback_analysis(clean_title, raw_text, website_url, audit_data, links)
 
 def generate_fallback_analysis(
     title: str,
@@ -168,8 +181,7 @@ def generate_fallback_analysis(
     audit_data: Optional[Dict[str, Any]],
     links: Dict[str, str]
 ) -> Dict[str, Any]:
-    """Generates an intelligent analysis when offline or waiting for user API key."""
-    # Intent heuristics
+    """Generates a contextual analysis when offline or waiting for user API key."""
     lower_content = (title + " " + raw_text).lower()
     is_freelancer_promo = any(phrase in lower_content for phrase in ["for hire", "[for hire]", "hire me", "i am a developer", "my portfolio", "available for work"])
     is_hiring_signals = any(phrase in lower_content for phrase in ["[hiring]", "looking for", "need a developer", "seeking", "budget:", "$", "wanted", "we are building"])
@@ -187,35 +199,45 @@ def generate_fallback_analysis(
     if "api" in lower_content or "backend" in lower_content or "fastapi" in lower_content or "node" in lower_content:
         pain_points.append("Scalable API endpoints and database optimization")
     if not pain_points:
-        pain_points.append("Fast turnaround on web development & bug fixes")
+        pain_points.append("Full-stack engineering & scalable web infrastructure")
         pain_points.append("Clean, maintainable, production-grade code")
 
-    # Name detection
-    name = "there"
-    match = re.search(r"(?:i'm|i am|my name is)\s+([A-Z][a-z]+)", raw_text, re.IGNORECASE)
-    if match:
-        name = match.group(1)
-
-    critique_str = ""
-    if website_url and audit_data and audit_data.get("critiques"):
-        critique_str = f"I took a quick look at {website_url} and noticed {audit_data['critiques'][0].lower()}"
+    # Company or role recognition
+    clean_target = title
+    if "|" in title:
+        parts = [p.strip() for p in title.split("|")]
+        company = parts[0]
+        role = parts[1] if len(parts) > 1 else "Engineering"
+        clean_target = f"{company}'s {role} opening"
+        lead_name = f"{company} Team"
+    elif "new comment by" in title.lower():
+        clean_target = "your engineering requirements"
+        lead_name = "Hiring Team"
     else:
-        critique_str = "For this project, my approach focuses on ultra-fast Core Web Vitals, high mobile conversion, and clean code that's easy to scale."
+        clean_target = title[:45].strip()
+        lead_name = "there"
 
-    subject = f"Question regarding your {title[:32].strip()} project"
+    # Contextual critique without broken URLs
+    critique_str = ""
+    if website_url and audit_data and audit_data.get("critiques") and "." in website_url:
+        critique_str = f"I reviewed {website_url} and identified opportunities to optimize performance: {audit_data['critiques'][0].lower()}."
+    else:
+        critique_str = f"My engineering approach focuses on sub-second Core Web Vitals, high conversion, and maintainable architecture for {pain_points[0].lower()}."
+
+    subject = f"Regarding {clean_target[:35]}"
     
     body = (
-        f"Hi {name},\n\n"
-        f"I came across your post about '{title[:45]}...' and wanted to reach out directly.\n\n"
-        f"{critique_str} I specialize in full-stack Next.js and high-performance web systems, helping teams ship polished, reliable products without technical debt.\n\n"
-        f"You can explore a few of my recent client builds here: {links['portfolio_url']}.\n\n"
-        f"Are you open to a brief 10-minute sync this week? Or grab any slot on my calendar: {links['calendly_url']}.\n\n"
+        f"Hi {lead_name},\n\n"
+        f"I noticed your requirement regarding {clean_target} and wanted to reach out.\n\n"
+        f"{critique_str} I specialize in full-stack Next.js and resilient backend systems, helping teams deploy polished, production-grade software without accumulating technical debt.\n\n"
+        f"You can review several of my recent client builds here: {links['portfolio_url']}.\n\n"
+        f"Would you be open to a brief 10-minute introductory call this week? Feel free to pick a convenient slot here: {links['calendly_url']}.\n\n"
         f"Best regards,\n{links['sender_name']}"
     )
 
     return {
         "is_hiring": is_hiring,
-        "lead_name": name if name != "there" else "Project Lead",
+        "lead_name": lead_name,
         "pain_points": pain_points,
         "audit_summary": f"Identified core focus: {', '.join(pain_points)}. {critique_str}",
         "subject_line": subject,

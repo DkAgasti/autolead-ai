@@ -3,11 +3,19 @@ import httpx
 from bs4 import BeautifulSoup
 from typing import Dict, Any, Optional
 
-async def audit_website(url: str) -> Dict[str, Any]:
+async def audit_website(url: str) -> Optional[Dict[str, Any]]:
     """
     Fetches basic metadata, checks response time, SSL, and mobile readiness.
     Generates 2 actionable improvement critiques.
+    Returns None if URL is invalid or malformed (e.g. 'https:///').
     """
+    if not url:
+        return None
+
+    clean_domain = url.replace("https://", "").replace("http://", "").strip("/")
+    if "." not in clean_domain or len(clean_domain) < 4 or "/" in clean_domain.split(".")[0]:
+        return None
+
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
 
