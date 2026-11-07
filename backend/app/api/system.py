@@ -1,4 +1,5 @@
 import datetime
+import asyncio
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
@@ -7,7 +8,7 @@ from app.database import get_db
 from app.models import SystemLog, Lead
 from app.services.scraper import run_harvester, get_rich_curated_seed_leads
 from app.services.imap_engine import poll_imap_inbox
-from app.services.scheduler import scheduled_outbound_queue_dispatcher
+from app.services.scheduler import scheduled_outbound_queue_dispatcher, is_autonomous_outreach_enabled
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -25,9 +26,9 @@ async def trigger_imap_now():
 
 @router.post("/dispatch-queue-now")
 async def trigger_queue_dispatch():
-    """Runs the outbound queue dispatcher immediately."""
-    await scheduled_outbound_queue_dispatcher()
-    return {"status": "success", "message": "Dispatched eligible queue items."}
+    """Runs the outbound queue dispatcher immediately in background."""
+    asyncio.create_task(scheduled_outbound_queue_dispatcher())
+    return {"status": "success", "message": "Outbound queue dispatcher started in background."}
 
 @router.get("/logs")
 def get_logs(limit: int = 50, db: Session = Depends(get_db)):
@@ -118,6 +119,7 @@ async def run_autopilot_pipeline(db: Session = Depends(get_db)):
     1-Click Auto-Pilot:
     1. Scrapes fresh live leads from WeWorkRemotely, HackerNews, and Reddit
     2. Runs Gemini AI analysis & cold pitch generation on all raw leads
+    3. Auto-dispatches emails via direct Gmail SMTP if autonomous outreach is enabled
     """
     from app.api.leads import bulk_analyze_raw_leads
 
@@ -127,10 +129,15 @@ async def run_autopilot_pipeline(db: Session = Depends(get_db)):
     # 2. Analyze
     analyze_res = await bulk_analyze_raw_leads(db)
 
+    # 3. Automatically trigger outbound dispatcher in background
+    if is_autonomous_outreach_enabled():
+        asyncio.create_task(scheduled_outbound_queue_dispatcher())
+
     return {
         "status": "success",
         "scraped": scrape_res.get("added", 0),
-        "analyzed": analyze_res.get("analyzed_count", 0)
+        "analyzed": analyze_res.get("analyzed_count", 0),
+        "outreach": "Autonomous email dispatch active in background"
     }
 
 

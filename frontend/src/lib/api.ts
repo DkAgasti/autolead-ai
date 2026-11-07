@@ -147,6 +147,7 @@ export async function triggerQueueDispatch(): Promise<{ status: string; message:
   if (!res.ok) throw new Error('Queue dispatch failed');
   return res.json();
 }
+export const dispatchQueueNow = triggerQueueDispatch;
 
 export async function sendTestEmail(): Promise<{ status: string; message: string; message_id?: string }> {
   const res = await fetch(`${API_BASE}/api/system/send-test-email`, { method: 'POST' });

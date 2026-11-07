@@ -1,6 +1,8 @@
 import datetime
 import logging
 import json
+import asyncio
+import random
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -18,6 +20,7 @@ from app.services.imap_engine import poll_imap_inbox
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
+_dispatcher_lock = asyncio.Lock()
 
 def is_autonomous_outreach_enabled() -> bool:
     """Checks if fully autonomous outreach pipeline is active."""
@@ -138,73 +141,113 @@ async def scheduled_imap_poller_job():
 async def scheduled_outbound_queue_dispatcher():
     """
     Automated Outbound Dispatcher:
-    Picks up all leads in SCHEDULED status.
+    Picks up all leads in SCHEDULED or ANALYZED status.
     Dispatches personalized cold email via direct Gmail SMTP (smtp.gmail.com:465 SSL).
-    Applies anti-ban throttle (45-90s random delay) between consecutive sends.
+    Applies anti-ban throttle (45-90s random delay for real emails) between consecutive sends.
     """
-    db = SessionLocal()
-    try:
-        scheduled_leads = db.query(Lead).filter(Lead.status == "SCHEDULED").all()
-        if not scheduled_leads:
-            return
+    if _dispatcher_lock.locked():
+        logger.info("Outbound queue dispatcher already running, skipping overlapping execution.")
+        return
 
-        creds = get_smtp_credentials()
-        respect_tz = is_respect_timezone_window_enabled()
+    async with _dispatcher_lock:
+        db = SessionLocal()
+        try:
+            autonomous = is_autonomous_outreach_enabled()
+            if autonomous:
+                scheduled_leads = db.query(Lead).filter(
+                    Lead.status.in_(["SCHEDULED", "ANALYZED"]),
+                    Lead.is_hiring == True,
+                    Lead.email.isnot(None)
+                ).order_by(Lead.id.asc()).all()
+            else:
+                scheduled_leads = db.query(Lead).filter(
+                    Lead.status == "SCHEDULED",
+                    Lead.email.isnot(None)
+                ).order_by(Lead.id.asc()).all()
 
-        for lead in scheduled_leads:
-            # Check client timezone window if enabled
-            if respect_tz:
-                in_window = is_within_client_window(lead.timezone or "America/New_York")
-                if not in_window:
-                    logger.info(f"Lead #{lead.id} waiting for local timezone window ({lead.timezone})...")
+            if not scheduled_leads:
+                return
+
+            creds = get_smtp_credentials()
+            respect_tz = is_respect_timezone_window_enabled()
+            logger.info(f"Outbound Dispatcher: Processing {len(scheduled_leads)} leads for automated dispatch...")
+
+            for lead in scheduled_leads:
+                # Check client timezone window if enabled
+                if respect_tz:
+                    in_window = is_within_client_window(lead.timezone or "America/New_York")
+                    if not in_window:
+                        logger.info(f"Lead #{lead.id} waiting for local timezone window ({lead.timezone})...")
+                        continue
+
+                if not lead.email:
                     continue
 
-            if not lead.email:
-                continue
+                subj = lead.subject_line or f"Collaboration regarding {lead.title[:30]}"
+                body = lead.email_body
+                if not body:
+                    body = (
+                        f"Hi {lead.lead_name or 'there'},\n\n"
+                        f"I came across your posting regarding {lead.title}.\n"
+                        f"{lead.audit_summary or 'We specialize in modern web & AI software engineering.'}\n\n"
+                        f"Would you be open to connecting for a quick 10-minute introductory call?\n\n"
+                        f"Best regards,\n{creds.get('sender_name') or 'CodePro'}"
+                    )
 
-            logger.info(f"Auto-Dispatching email to {lead.email} via Gmail SMTP...")
+                logger.info(f"Auto-Dispatching email to {lead.email} via Gmail SMTP...")
 
-            success, msg_info, message_id = await send_native_email_async(
-                recipient_email=lead.email,
-                subject=lead.subject_line or f"Question regarding {lead.title[:30]}",
-                body_text=lead.email_body or ""
-            )
-
-            if success:
-                lead.status = "SENT"
-                lead.sent_at = datetime.datetime.utcnow()
-                lead.message_id = message_id
-
-                thread = EmailThread(
-                    lead_id=lead.id,
-                    direction="OUTBOUND",
-                    sender=creds["user"] or "5yearcodepro.dev@gmail.com",
-                    recipient=lead.email,
-                    subject=lead.subject_line or "Outreach Pitch",
-                    body_text=lead.email_body or "",
-                    message_id=message_id,
-                    status="SENT",
-                    created_at=datetime.datetime.utcnow()
+                success, msg_info, message_id = await send_native_email_async(
+                    recipient_email=lead.email,
+                    subject=subj,
+                    body_text=body
                 )
-                db.add(thread)
 
-                log = SystemLog(
-                    level="SUCCESS",
-                    module="SMTP",
-                    message=f"Autonomous Outbound: Dispatched pitch to {lead.email}",
-                    details=f"Message-ID: {message_id}"
-                )
-                db.add(log)
-                db.commit()
+                if success:
+                    lead.status = "SENT"
+                    lead.sent_at = datetime.datetime.utcnow()
+                    lead.message_id = message_id
 
-                # Anti-ban throttle delay between consecutive emails
-                await anti_ban_delay()
+                    thread = EmailThread(
+                        lead_id=lead.id,
+                        direction="OUTBOUND",
+                        sender=creds["user"] or "5yearcodepro.dev@gmail.com",
+                        recipient=lead.email,
+                        subject=subj,
+                        body_text=body,
+                        message_id=message_id,
+                        status="SENT",
+                        created_at=datetime.datetime.utcnow()
+                    )
+                    db.add(thread)
 
-    except Exception as e:
-        logger.error(f"Error in outbound dispatcher: {e}")
-        db.rollback()
-    finally:
-        db.close()
+                    log = SystemLog(
+                        level="SUCCESS",
+                        module="SMTP",
+                        message=f"Autonomous Outbound: Dispatched pitch to {lead.email}",
+                        details=f"Message-ID: {message_id}"
+                    )
+                    db.add(log)
+                    db.commit()
+
+                    # Throttle delay: only for real outbound emails to prevent spam flags.
+                    # For placeholder simulations, use 1 second to avoid UI freezes.
+                    is_placeholder = (
+                        lead.email.endswith(".placeholder")
+                        or "@reddit-contact." in lead.email
+                        or "@weworkremotely." in lead.email
+                    )
+                    if not is_placeholder:
+                        await anti_ban_delay()
+                    else:
+                        await asyncio.sleep(1)
+                else:
+                    logger.error(f"Failed to dispatch to {lead.email}: {msg_info}")
+
+        except Exception as e:
+            logger.error(f"Error in outbound dispatcher: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
 def start_scheduler():
     """Initializes and starts the APScheduler jobs."""
@@ -213,17 +256,23 @@ def start_scheduler():
 
     # 1. Daily Autonomous Pipeline at 10:00 AM IST (Asia/Kolkata)
     ist_tz = pytz.timezone("Asia/Kolkata")
+    time_str = getattr(settings, "DAILY_SCRAPE_TIME_IST", "10:00")
+    try:
+        hour, minute = map(int, time_str.split(":"))
+    except Exception:
+        hour, minute = 10, 0
+
     scheduler.add_job(
         scheduled_harvester_job,
-        trigger=CronTrigger(hour=10, minute=0, timezone=ist_tz),
+        trigger=CronTrigger(hour=hour, minute=minute, timezone=ist_tz),
         id="daily_harvester",
         replace_existing=True
     )
 
-    # 2. Outbound Dispatcher (checks queue every 3 minutes)
+    # 2. Outbound Dispatcher (checks queue every 2 minutes)
     scheduler.add_job(
         scheduled_outbound_queue_dispatcher,
-        trigger=IntervalTrigger(minutes=3),
+        trigger=IntervalTrigger(minutes=2),
         id="queue_dispatcher",
         replace_existing=True
     )
@@ -237,7 +286,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("APScheduler initialized: Autonomous 10:00 AM IST Pipeline, Queue Dispatcher (3m), IMAP Poller (2m).")
+    logger.info(f"APScheduler initialized: Autonomous {hour:02d}:{minute:02d} IST Pipeline, Queue Dispatcher (2m), IMAP Poller (2m).")
 
 def stop_scheduler():
     if scheduler.running:

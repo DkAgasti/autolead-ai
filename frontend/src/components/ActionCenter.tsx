@@ -17,7 +17,7 @@ import {
   Mail,
   Zap
 } from 'lucide-react';
-import { sendLeadNow, scheduleLead, discardLead, updateLeadDraft, bulkAnalyzeRaw } from '@/lib/api';
+import { sendLeadNow, scheduleLead, discardLead, updateLeadDraft, bulkAnalyzeRaw, dispatchQueueNow } from '@/lib/api';
 
 interface ActionCenterProps {
   leads: Lead[];
@@ -37,6 +37,7 @@ export function ActionCenter({ leads, onRefresh, onOpenLead }: ActionCenterProps
   const [editedEmail, setEditedEmail] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isBulkAnalyzing, setIsBulkAnalyzing] = useState(false);
+  const [isDispatchingQueue, setIsDispatchingQueue] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const currentLead = pendingReviewLeads[activeLeadIndex] || null;
@@ -119,6 +120,21 @@ export function ActionCenter({ leads, onRefresh, onOpenLead }: ActionCenterProps
     }
   };
 
+  const handleDispatchQueue = async () => {
+    setIsDispatchingQueue(true);
+    try {
+      const res = await dispatchQueueNow();
+      setActionMessage({ text: res.message || 'Auto-dispatch queue started in background!', type: 'success' });
+      setTimeout(() => {
+        onRefresh();
+      }, 2000);
+    } catch (err: any) {
+      setActionMessage({ text: err.message || 'Dispatch queue failed', type: 'error' });
+    } finally {
+      setIsDispatchingQueue(false);
+    }
+  };
+
   if (pendingReviewLeads.length === 0) {
     return (
       <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-12 text-center max-w-2xl mx-auto space-y-4">
@@ -171,6 +187,18 @@ export function ActionCenter({ leads, onRefresh, onOpenLead }: ActionCenterProps
         </div>
 
         <div className="flex items-center space-x-2">
+          {pendingReviewLeads.length > 0 && (
+            <button
+              onClick={handleDispatchQueue}
+              disabled={isDispatchingQueue}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md shadow-blue-500/20 transition disabled:opacity-50"
+              title="Automatically dispatch all analyzed leads via direct Gmail SMTP"
+            >
+              <Send className={`w-3.5 h-3.5 ${isDispatchingQueue ? 'animate-bounce' : ''}`} />
+              <span>{isDispatchingQueue ? 'Dispatching...' : `Auto-Send All (${pendingReviewLeads.length})`}</span>
+            </button>
+          )}
+
           {rawLeads.length > 0 && (
             <button
               onClick={handleBulkAnalyze}

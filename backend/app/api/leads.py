@@ -1,5 +1,6 @@
 import json
 import datetime
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -10,6 +11,7 @@ from app.schemas import LeadOut, LeadCreate, LeadUpdate, SendEmailRequest, Reply
 from app.services.website_auditor import audit_website
 from app.services.gemini_engine import analyze_lead_with_gemini
 from app.services.smtp_engine import send_native_email_async, get_smtp_credentials
+from app.services.scheduler import is_autonomous_outreach_enabled, scheduled_outbound_queue_dispatcher
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
 
@@ -136,7 +138,12 @@ async def analyze_single_lead(lead_id: int, db: Session = Depends(get_db)):
     lead.email_body = result["email_body"]
 
     if lead.is_hiring:
-        lead.status = "ANALYZED"
+        if is_autonomous_outreach_enabled():
+            lead.status = "SCHEDULED"
+            lead.scheduled_at = datetime.datetime.utcnow()
+            asyncio.create_task(scheduled_outbound_queue_dispatcher())
+        else:
+            lead.status = "ANALYZED"
     else:
         lead.status = "FILTERED_OUT"
 
@@ -149,6 +156,7 @@ async def analyze_single_lead(lead_id: int, db: Session = Depends(get_db)):
 async def bulk_analyze_raw_leads(db: Session = Depends(get_db)):
     """Bulk analyze all leads currently in RAW status."""
     raw_leads = db.query(Lead).filter(Lead.status == "RAW").all()
+    autonomous = is_autonomous_outreach_enabled()
     count = 0
     for lead in raw_leads:
         audit_res = None
@@ -161,10 +169,21 @@ async def bulk_analyze_raw_leads(db: Session = Depends(get_db)):
         lead.audit_summary = res["audit_summary"]
         lead.subject_line = res["subject_line"]
         lead.email_body = res["email_body"]
-        lead.status = "ANALYZED" if res["is_hiring"] else "FILTERED_OUT"
+        if res["is_hiring"]:
+            if autonomous:
+                lead.status = "SCHEDULED"
+                lead.scheduled_at = datetime.datetime.utcnow()
+            else:
+                lead.status = "ANALYZED"
+        else:
+            lead.status = "FILTERED_OUT"
         lead.updated_at = datetime.datetime.utcnow()
         count += 1
     db.commit()
+
+    if autonomous and count > 0:
+        asyncio.create_task(scheduled_outbound_queue_dispatcher())
+
     return {"status": "success", "analyzed_count": count}
 
 @router.post("/{lead_id}/schedule", response_model=LeadOut)
