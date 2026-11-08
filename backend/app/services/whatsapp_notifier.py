@@ -110,11 +110,41 @@ async def send_whatsapp_message(message: str, phone: Optional[str] = None) -> Tu
         clean_phone = f"91{clean_phone}"
 
     callmebot_key = settings.CALLMEBOT_API_KEY.strip()
+    meta_token = settings.META_WHATSAPP_TOKEN.strip()
+    meta_phone_id = settings.META_PHONE_NUMBER_ID.strip()
     success = False
     status_msg = ""
 
-    # 1. Try CallMeBot WhatsApp API if API key is provided
-    if callmebot_key:
+    # 1. Try Meta Official WhatsApp Business Cloud API
+    if meta_token and meta_phone_id:
+        try:
+            url = f"https://graph.facebook.com/v21.0/{meta_phone_id}/messages"
+            headers = {
+                "Authorization": f"Bearer {meta_token}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": clean_phone,
+                "type": "text",
+                "text": {"preview_url": False, "body": message}
+            }
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(url, headers=headers, json=payload)
+                if res.status_code in [200, 201]:
+                    success = True
+                    status_msg = f"Dispatched to WhatsApp Business (+{clean_phone}) via Meta Cloud API"
+                    logger.info(status_msg)
+                else:
+                    status_msg = f"Meta WhatsApp error (HTTP {res.status_code}): {res.text[:120]}"
+                    logger.warning(status_msg)
+        except Exception as me:
+            status_msg = f"Meta WhatsApp connection failed: {me}"
+            logger.error(status_msg)
+
+    # 2. Try CallMeBot WhatsApp Gateway (Works seamlessly on personal & WhatsApp Business)
+    elif callmebot_key:
         try:
             encoded_text = urllib.parse.quote(message)
             url = f"https://api.callmebot.com/whatsapp.php?phone=+{clean_phone}&text={encoded_text}&apikey={callmebot_key}"
@@ -131,7 +161,7 @@ async def send_whatsapp_message(message: str, phone: Optional[str] = None) -> Tu
             status_msg = f"CallMeBot connection failed: {e}"
             logger.error(status_msg)
 
-    # 2. Try Twilio if CallMeBot not configured and Twilio credentials present
+    # 3. Try Twilio if credentials present
     elif settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_WHATSAPP_NUMBER:
         try:
             twilio_url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
@@ -199,3 +229,4 @@ async def generate_and_send_daily_report(phone: Optional[str] = None) -> Dict[st
     metrics["whatsapp_direct_url"] = f"https://api.whatsapp.com/send?phone={clean_phone}&text={encoded_text}"
     
     return metrics
+

@@ -43,3 +43,4 @@ async def trigger_whatsapp_report(
         "message": result.get("whatsapp_status", "Report processed"),
         "metrics": result
     }
+

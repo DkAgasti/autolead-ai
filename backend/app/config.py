@@ -40,9 +40,11 @@ class Settings(BaseSettings):
     EMAIL_THROTTLE_MIN_SEC: int = int(os.getenv("EMAIL_THROTTLE_MIN_SEC", "45"))
     EMAIL_THROTTLE_MAX_SEC: int = int(os.getenv("EMAIL_THROTTLE_MAX_SEC", "90"))
     
-    # WhatsApp Daily Reporting
+    # WhatsApp Daily Reporting (Automatic Hands-Free)
     WHATSAPP_PHONE_NUMBER: str = os.getenv("WHATSAPP_PHONE_NUMBER", "918280716327")
     CALLMEBOT_API_KEY: str = os.getenv("CALLMEBOT_API_KEY", "")
+    META_WHATSAPP_TOKEN: str = os.getenv("META_WHATSAPP_TOKEN", "")
+    META_PHONE_NUMBER_ID: str = os.getenv("META_PHONE_NUMBER_ID", "")
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_WHATSAPP_NUMBER: str = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
