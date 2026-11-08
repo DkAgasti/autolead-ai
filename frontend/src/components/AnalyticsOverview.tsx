@@ -270,7 +270,7 @@ export function AnalyticsOverview({
                   </div>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Automated phone alerts every day at 10:00 AM IST & 8:00 PM IST (Zero manual clicks).
+                  Automated phone alerts every day right after morning outreach (10:00 AM & 12:00 PM IST).
                 </p>
               </div>
             </div>

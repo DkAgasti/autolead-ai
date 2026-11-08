@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_WHATSAPP_NUMBER: str = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
-    DAILY_REPORT_TIME_IST: str = os.getenv("DAILY_REPORT_TIME_IST", "20:00")
+    DAILY_REPORT_TIME_IST: str = os.getenv("DAILY_REPORT_TIME_IST", "12:00")
     
     class Config:
         env_file = ".env"

@@ -326,22 +326,22 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # 4. Daily Evening WhatsApp Wrap-Up Report at 20:00 IST (8:00 PM)
-    report_time_str = getattr(settings, "DAILY_REPORT_TIME_IST", "20:00")
+    # 4. Daily Midday Report at 12:00 PM IST
+    report_time_str = getattr(settings, "DAILY_REPORT_TIME_IST", "12:00")
     try:
         r_hour, r_minute = map(int, report_time_str.split(":"))
     except Exception:
-        r_hour, r_minute = 20, 0
+        r_hour, r_minute = 12, 0
 
     scheduler.add_job(
         scheduled_whatsapp_report_job,
         trigger=CronTrigger(hour=r_hour, minute=r_minute, timezone=ist_tz),
-        id="daily_evening_whatsapp_report",
+        id="daily_midday_report",
         replace_existing=True
     )
 
     scheduler.start()
-    logger.info(f"APScheduler initialized: Autonomous {hour:02d}:{minute:02d} IST Pipeline, Daily {r_hour:02d}:{r_minute:02d} IST WhatsApp Report, Queue (2m), IMAP (2m).")
+    logger.info(f"APScheduler initialized: Autonomous {hour:02d}:{minute:02d} IST Pipeline, Daily {r_hour:02d}:{r_minute:02d} IST Summary Report, Queue (2m), IMAP (2m).")
 
 def stop_scheduler():
     if scheduler.running:
