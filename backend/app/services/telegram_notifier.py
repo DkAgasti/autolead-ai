@@ -1,5 +1,8 @@
 import logging
-import httpx
+import json
+import urllib.request
+import urllib.error
+import asyncio
 from typing import Dict, Any, Tuple, Optional
 
 from app.config import settings
@@ -8,6 +11,31 @@ from app.models import SystemLog
 from app.services.whatsapp_notifier import generate_daily_metrics
 
 logger = logging.getLogger(__name__)
+
+def _sync_telegram_post(url: str, payload: dict) -> Tuple[bool, dict]:
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            return True, res_data
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        try:
+            return False, json.loads(err_body)
+        except Exception:
+            return False, {"description": err_body}
+    except Exception as e:
+        return False, {"description": str(e)}
+
+def _sync_telegram_get(url: str) -> Tuple[bool, dict]:
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "AutoLeadAI/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            return True, res_data
+    except Exception as e:
+        return False, {"description": str(e)}
 
 async def send_telegram_message(
     message: str,
@@ -43,36 +71,31 @@ async def send_telegram_message(
         "text": message
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload)
-            data = resp.json()
-            if resp.status_code == 200 and data.get("ok"):
-                status_info = f"Dispatched report to Telegram chat {target_chat_id}"
-                logger.info(status_info)
-                
-                # Log to SystemLog
-                try:
-                    db = SessionLocal()
-                    db.add(SystemLog(
-                        level="SUCCESS",
-                        module="TELEGRAM",
-                        message=status_info,
-                        details=message
-                    ))
-                    db.commit()
-                    db.close()
-                except Exception:
-                    pass
-                
-                return True, status_info
-            else:
-                err_desc = data.get("description", resp.text[:120])
-                msg = f"Telegram API error: {err_desc}"
-                logger.error(msg)
-                return False, msg
-    except Exception as e:
-        msg = f"Telegram connection failed: {e}"
+    loop = asyncio.get_running_loop()
+    ok, data = await loop.run_in_executor(None, _sync_telegram_post, url, payload)
+
+    if ok and data.get("ok"):
+        status_info = f"Dispatched report to Telegram chat {target_chat_id}"
+        logger.info(status_info)
+        
+        # Log to SystemLog
+        try:
+            db = SessionLocal()
+            db.add(SystemLog(
+                level="SUCCESS",
+                module="TELEGRAM",
+                message=status_info,
+                details=message
+            ))
+            db.commit()
+            db.close()
+        except Exception:
+            pass
+        
+        return True, status_info
+    else:
+        err_desc = data.get("description", "Unknown error")
+        msg = f"Telegram API error: {err_desc}"
         logger.error(msg)
         return False, msg
 
@@ -86,18 +109,15 @@ async def auto_discover_chat_id(bot_token: Optional[str] = None) -> Optional[str
         return None
 
     url = f"https://api.telegram.org/bot{token}/getUpdates"
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
-            data = resp.json()
-            if data.get("ok") and data.get("result"):
-                # Get latest message
-                for update in reversed(data["result"]):
-                    msg = update.get("message") or update.get("channel_post")
-                    if msg and "chat" in msg:
-                        return str(msg["chat"]["id"])
-    except Exception as e:
-        logger.warning(f"Error checking Telegram updates: {e}")
+    loop = asyncio.get_running_loop()
+    ok, data = await loop.run_in_executor(None, _sync_telegram_get, url)
+
+    if ok and data.get("ok") and data.get("result"):
+        # Look for messages in updates
+        for update in reversed(data["result"]):
+            msg = update.get("message") or update.get("channel_post")
+            if msg and "chat" in msg:
+                return str(msg["chat"]["id"])
     return None
 
 async def generate_and_send_telegram_report(
@@ -123,3 +143,4 @@ async def generate_and_send_telegram_report(
     metrics["telegram_sent"] = success
     metrics["telegram_status"] = status_info
     return metrics
+
