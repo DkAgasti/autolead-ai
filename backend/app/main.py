@@ -12,6 +12,7 @@ from app.api.leads import router as leads_router
 from app.api.analytics import router as analytics_router
 from app.api.settings import router as settings_router
 from app.api.system import router as system_router
+from app.api.reports import router as reports_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,6 +75,7 @@ app.include_router(leads_router)
 app.include_router(analytics_router)
 app.include_router(settings_router)
 app.include_router(system_router)
+app.include_router(reports_router)
 
 @app.get("/")
 def root():

@@ -128,6 +128,14 @@ async def scheduled_harvester_job():
             logger.info("Starting automated outbound SMTP dispatch with anti-ban delay...")
             await scheduled_outbound_queue_dispatcher()
 
+        # Step 4: Dispatch daily WhatsApp & email summary
+        try:
+            from app.services.whatsapp_notifier import generate_and_send_daily_report
+            await generate_and_send_daily_report()
+            logger.info("Dispatched post-outreach WhatsApp daily summary.")
+        except Exception as we:
+            logger.warning(f"Could not dispatch post-outreach WhatsApp summary: {we}")
+
     except Exception as e:
         logger.error(f"Error in autonomous pipeline: {e}")
         db.rollback()
@@ -140,6 +148,15 @@ async def scheduled_imap_poller_job():
         await poll_imap_inbox()
     except Exception as e:
         logger.error(f"Scheduled IMAP poller failed: {e}")
+
+async def scheduled_whatsapp_report_job():
+    """Daily summary dispatcher sending activity metrics to WhatsApp & email."""
+    try:
+        from app.services.whatsapp_notifier import generate_and_send_daily_report
+        res = await generate_and_send_daily_report()
+        logger.info(f"Scheduled WhatsApp summary dispatched: {res.get('whatsapp_status')}")
+    except Exception as e:
+        logger.error(f"Scheduled WhatsApp report failed: {e}")
 
 async def scheduled_outbound_queue_dispatcher():
     """
@@ -295,8 +312,22 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # 4. Daily Evening WhatsApp Wrap-Up Report at 20:00 IST (8:00 PM)
+    report_time_str = getattr(settings, "DAILY_REPORT_TIME_IST", "20:00")
+    try:
+        r_hour, r_minute = map(int, report_time_str.split(":"))
+    except Exception:
+        r_hour, r_minute = 20, 0
+
+    scheduler.add_job(
+        scheduled_whatsapp_report_job,
+        trigger=CronTrigger(hour=r_hour, minute=r_minute, timezone=ist_tz),
+        id="daily_evening_whatsapp_report",
+        replace_existing=True
+    )
+
     scheduler.start()
-    logger.info(f"APScheduler initialized: Autonomous {hour:02d}:{minute:02d} IST Pipeline, Queue Dispatcher (2m), IMAP Poller (2m).")
+    logger.info(f"APScheduler initialized: Autonomous {hour:02d}:{minute:02d} IST Pipeline, Daily {r_hour:02d}:{r_minute:02d} IST WhatsApp Report, Queue (2m), IMAP (2m).")
 
 def stop_scheduler():
     if scheduler.running:

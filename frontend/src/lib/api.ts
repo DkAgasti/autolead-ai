@@ -161,3 +161,28 @@ export async function runAutopilot(): Promise<{ status: string; scraped: number;
   return res.json();
 }
 
+export interface DailyReportSummary {
+  date: string;
+  total_leads: number;
+  valid_leads: number;
+  invalid_leads: number;
+  message_send_to_user: number;
+  reply_back_by_user: number;
+  formatted_message: string;
+  whatsapp_direct_url: string;
+  target_phone: string;
+  has_callmebot_key: boolean;
+}
+
+export async function fetchDailyReport(): Promise<DailyReportSummary> {
+  const res = await fetch(`${API_BASE}/api/reports/daily-summary`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch daily report');
+  return res.json();
+}
+
+export async function triggerSendWhatsAppReport(): Promise<{ status: string; message: string; metrics: DailyReportSummary }> {
+  const res = await fetch(`${API_BASE}/api/reports/send-whatsapp`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to send WhatsApp report');
+  return res.json();
+}
+
