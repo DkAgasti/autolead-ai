@@ -138,7 +138,9 @@ async def analyze_single_lead(lead_id: int, db: Session = Depends(get_db)):
     lead.email_body = result["email_body"]
 
     if lead.is_hiring:
-        if is_autonomous_outreach_enabled():
+        if not lead.email:
+            lead.status = "NEEDS_EMAIL"
+        elif is_autonomous_outreach_enabled():
             lead.status = "SCHEDULED"
             lead.scheduled_at = datetime.datetime.utcnow()
             asyncio.create_task(scheduled_outbound_queue_dispatcher())

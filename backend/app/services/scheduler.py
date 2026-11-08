@@ -93,7 +93,10 @@ async def scheduled_harvester_job():
                 lead.email_body = res["email_body"]
 
                 if res["is_hiring"]:
-                    if autonomous:
+                    if not lead.email:
+                        lead.status = "NEEDS_EMAIL"
+                        logger.info(f"Lead #{lead.id} ({lead.title[:35]}) hiring but lacks email -> marked NEEDS_EMAIL")
+                    elif autonomous:
                         # Auto-schedule for automated outbound dispatch
                         lead.status = "SCHEDULED"
                         lead.scheduled_at = datetime.datetime.utcnow()

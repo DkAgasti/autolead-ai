@@ -63,6 +63,39 @@ def extract_url(text: str) -> Optional[str]:
             return clean
     return None
 
+async def enrich_email_from_website(url: str) -> Optional[str]:
+    """
+    Crawls a candidate company website to discover public contact/support/careers emails.
+    """
+    if not url or not url.startswith("http"):
+        return None
+    # Skip social networks and code hosting
+    if any(x in url.lower() for x in ["linkedin.com", "reddit.com", "github.com", "twitter.com", "x.com", "t.me", "youtube.com"]):
+        return None
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 AutoLeadEnrich/1.0"
+        }
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True, verify=False) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                raw_emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', resp.text)
+                valid = []
+                for em in raw_emails:
+                    clean = em.rstrip('.').lower()
+                    if not any(b in clean for b in ["png", "jpg", "jpeg", "svg", "webp", "sentry", "wixpress", "example.com", "domain.com", "schema.org"]):
+                        valid.append(clean)
+                if valid:
+                    # Prioritize hiring, contact, info, support, hello
+                    for pref in ["hiring", "jobs", "careers", "recruiting", "contact", "support", "hello", "team", "info"]:
+                        for v in valid:
+                            if v.startswith(pref):
+                                return v
+                    return valid[0]
+    except Exception:
+        pass
+    return None
+
 async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
     """Scrapes a Reddit subreddit RSS feed with compliant user-agent."""
     url = f"https://www.reddit.com/r/{sub_name}/new/.rss?sort=new"
@@ -91,6 +124,8 @@ async def scrape_reddit_feed(sub_name: str) -> List[Dict[str, Any]]:
                         
                         email = extract_email(text_content)
                         website = extract_url(text_content)
+                        if not email and website:
+                            email = await enrich_email_from_website(website)
                         country, tz = detect_country_and_tz(text_content)
 
                         leads.append({
@@ -115,8 +150,11 @@ async def scrape_google_dorks_and_web() -> List[Dict[str, Any]]:
     """
     leads = []
     feeds = [
-        ("WeWorkRemotely Web Dev", "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss", "Web"),
-        ("HN Who Is Hiring", "https://hnrss.org/whoishiring/jobs", "Web"),
+        ("WeWorkRemotely Full-Stack", "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss", "Web"),
+        ("WeWorkRemotely Back-End", "https://weworkremotely.com/categories/remote-back-end-programming-jobs.rss", "Web"),
+        ("WeWorkRemotely Front-End", "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss", "Web"),
+        ("HN Who Is Hiring Jobs", "https://hnrss.org/whoishiring/jobs", "Web"),
+        ("HN Who Is Hiring", "https://hnrss.org/whoishiring", "Web"),
     ]
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -136,6 +174,8 @@ async def scrape_google_dorks_and_web() -> List[Dict[str, Any]]:
                         
                         email = extract_email(clean_text)
                         url = extract_url(clean_text)
+                        if not email and url:
+                            email = await enrich_email_from_website(url)
                         country, tz = detect_country_and_tz(clean_text)
                         
                         # Clean company/author name
