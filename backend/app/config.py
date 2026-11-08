@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     EMAIL_THROTTLE_MIN_SEC: int = int(os.getenv("EMAIL_THROTTLE_MIN_SEC", "45"))
     EMAIL_THROTTLE_MAX_SEC: int = int(os.getenv("EMAIL_THROTTLE_MAX_SEC", "90"))
     
+    # Telegram Daily Reporting (100% Lifetime Free Forever)
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    
     # WhatsApp Daily Reporting (Automatic Hands-Free)
     WHATSAPP_PHONE_NUMBER: str = os.getenv("WHATSAPP_PHONE_NUMBER", "918280716327")
     CALLMEBOT_API_KEY: str = os.getenv("CALLMEBOT_API_KEY", "")

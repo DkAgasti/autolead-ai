@@ -2,7 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { AnalyticsData } from '@/types';
-import { fetchDailyReport, triggerSendWhatsAppReport, DailyReportSummary } from '@/lib/api';
+import {
+  fetchDailyReport,
+  triggerSendWhatsAppReport,
+  DailyReportSummary,
+  fetchTelegramSummary,
+  triggerSendTelegramReport,
+  autoDetectTelegramChatId,
+  TelegramSummary
+} from '@/lib/api';
 import {
   Compass,
   CheckCircle2,
@@ -17,7 +25,10 @@ import {
   AlertTriangle,
   MessageSquare,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Bell,
+  Smartphone,
+  Bot
 } from 'lucide-react';
 
 interface AnalyticsOverviewProps {
@@ -32,12 +43,17 @@ export function AnalyticsOverview({
   onQuickAction
 }: AnalyticsOverviewProps) {
   const [dailyReport, setDailyReport] = useState<DailyReportSummary | null>(null);
+  const [telegramSummary, setTelegramSummary] = useState<TelegramSummary | null>(null);
+  const [activeChannel, setActiveChannel] = useState<'telegram' | 'whatsapp'>('telegram');
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+  const [isDetectingChatId, setIsDetectingChatId] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reportFeedback, setReportFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDailyReport().then(setDailyReport).catch(() => {});
+    fetchTelegramSummary().then(setTelegramSummary).catch(() => {});
   }, [analytics]);
 
   const handleSendWhatsApp = async () => {
@@ -48,15 +64,48 @@ export function AnalyticsOverview({
       setReportFeedback(res.message);
       if (res.metrics) setDailyReport(res.metrics);
     } catch (e: any) {
-      setReportFeedback(e.message || 'Failed to dispatch report');
+      setReportFeedback(e.message || 'Failed to dispatch WhatsApp report');
     } finally {
       setIsSendingWhatsApp(false);
     }
   };
 
+  const handleSendTelegram = async () => {
+    setIsSendingTelegram(true);
+    setReportFeedback(null);
+    try {
+      const res = await triggerSendTelegramReport();
+      setReportFeedback(res.message);
+      if (res.metrics) setTelegramSummary(res.metrics);
+    } catch (e: any) {
+      setReportFeedback(e.message || 'Failed to dispatch Telegram report');
+    } finally {
+      setIsSendingTelegram(false);
+    }
+  };
+
+  const handleAutoDetectChatId = async () => {
+    setIsDetectingChatId(true);
+    setReportFeedback(null);
+    try {
+      const res = await autoDetectTelegramChatId();
+      if (res.status === 'success' && res.chat_id) {
+        setReportFeedback(`Discovered Chat ID: ${res.chat_id}! Please add TELEGRAM_CHAT_ID=${res.chat_id} to .env`);
+        fetchTelegramSummary().then(setTelegramSummary).catch(() => {});
+      } else {
+        setReportFeedback(res.message || 'No /start message found yet. Please send /start to your bot in Telegram first!');
+      }
+    } catch (e: any) {
+      setReportFeedback(e.message || 'Failed to auto-detect Telegram chat ID');
+    } finally {
+      setIsDetectingChatId(false);
+    }
+  };
+
   const handleCopyReport = () => {
-    if (!dailyReport) return;
-    navigator.clipboard.writeText(dailyReport.formatted_message);
+    const text = dailyReport?.formatted_message || telegramSummary?.formatted_message;
+    if (!text) return;
+    navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -185,23 +234,43 @@ export function AnalyticsOverview({
         </div>
       </div>
 
-      {/* WhatsApp Daily Digest Card */}
-      {dailyReport && (
-        <div className="rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900/60 to-slate-900/60 border border-emerald-500/30 p-5 backdrop-blur-sm shadow-sm">
+      {/* Daily Mobile Outreach Digest Card (Telegram & WhatsApp) */}
+      {(telegramSummary || dailyReport) && (
+        <div className="rounded-2xl bg-gradient-to-r from-sky-950/40 via-slate-900/60 to-slate-900/60 border border-sky-500/30 p-5 backdrop-blur-sm shadow-sm">
+          {/* Channel Tabs & Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-800/80">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center">
+                {activeChannel === 'telegram' ? <Bot className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <h3 className="text-sm font-bold text-white">Daily WhatsApp Outreach Digest</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
-                    {dailyReport.target_phone}
-                  </span>
+                  <h3 className="text-sm font-bold text-white">Daily Mobile Outreach Digest</h3>
+                  <div className="inline-flex rounded-lg bg-slate-800 p-0.5 border border-slate-700">
+                    <button
+                      onClick={() => setActiveChannel('telegram')}
+                      className={`px-2.5 py-0.5 rounded-md text-xs font-semibold transition ${
+                        activeChannel === 'telegram'
+                          ? 'bg-sky-500 text-white shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Telegram (Lifetime Free)
+                    </button>
+                    <button
+                      onClick={() => setActiveChannel('whatsapp')}
+                      className={`px-2.5 py-0.5 rounded-md text-xs font-semibold transition ${
+                        activeChannel === 'whatsapp'
+                          ? 'bg-emerald-600 text-white shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      WhatsApp
+                    </button>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Automated summary of daily harvested leads, AI validity, sent pitches & replies.
+                  Automated phone alerts every day at 10:00 AM IST & 8:00 PM IST (Zero manual clicks).
                 </p>
               </div>
             </div>
@@ -216,57 +285,98 @@ export function AnalyticsOverview({
                 <span>{copied ? 'Copied' : 'Copy'}</span>
               </button>
               
-              <a
-                href={dailyReport.whatsapp_direct_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition flex items-center space-x-1.5 shadow-sm shadow-emerald-500/20"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open in WhatsApp</span>
-              </a>
-
-              <button
-                onClick={handleSendWhatsApp}
-                disabled={isSendingWhatsApp}
-                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 text-xs font-medium transition flex items-center space-x-1.5"
-              >
-                <Send className={`w-3.5 h-3.5 ${isSendingWhatsApp ? 'animate-pulse' : ''}`} />
-                <span>{isSendingWhatsApp ? 'Sending...' : 'Auto-Dispatch'}</span>
-              </button>
+              {activeChannel === 'telegram' ? (
+                <>
+                  <button
+                    onClick={handleAutoDetectChatId}
+                    disabled={isDetectingChatId}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sky-300 text-xs font-medium transition flex items-center space-x-1.5"
+                    title="Auto-detect chat ID after sending /start"
+                  >
+                    <span>{isDetectingChatId ? 'Detecting...' : 'Detect Chat ID'}</span>
+                  </button>
+                  <button
+                    onClick={handleSendTelegram}
+                    disabled={isSendingTelegram}
+                    className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium transition flex items-center space-x-1.5 shadow-sm shadow-sky-500/20"
+                  >
+                    <Send className={`w-3.5 h-3.5 ${isSendingTelegram ? 'animate-pulse' : ''}`} />
+                    <span>{isSendingTelegram ? 'Sending...' : 'Send Telegram Test'}</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {dailyReport && (
+                    <a
+                      href={dailyReport.whatsapp_direct_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition flex items-center space-x-1.5 shadow-sm shadow-emerald-500/20"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open WhatsApp</span>
+                    </a>
+                  )}
+                  <button
+                    onClick={handleSendWhatsApp}
+                    disabled={isSendingWhatsApp}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-400 text-xs font-medium transition flex items-center space-x-1.5"
+                  >
+                    <Send className={`w-3.5 h-3.5 ${isSendingWhatsApp ? 'animate-pulse' : ''}`} />
+                    <span>{isSendingWhatsApp ? 'Sending...' : 'Auto-Dispatch'}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Live Message Preview Box */}
             <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 font-mono text-xs text-slate-300 whitespace-pre-line leading-relaxed shadow-inner">
-              {dailyReport.formatted_message}
+              {telegramSummary?.formatted_message || dailyReport?.formatted_message}
             </div>
 
-            {/* Quick Metrics Breakdown & Delivery Info */}
+            {/* Quick Metrics Breakdown & Channel Status */}
             <div className="space-y-2 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/60">
                   <span className="text-slate-400 block text-[11px]">Total Harvested</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block">{dailyReport.total_leads} leads</span>
+                  <span className="text-sm font-bold text-white mt-0.5 block">
+                    {(telegramSummary?.total_leads ?? dailyReport?.total_leads) || 0} leads
+                  </span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/60">
                   <span className="text-emerald-400 block text-[11px]">Valid (Hiring)</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block">{dailyReport.valid_leads} leads</span>
+                  <span className="text-sm font-bold text-white mt-0.5 block">
+                    {(telegramSummary?.valid_leads ?? dailyReport?.valid_leads) || 0} leads
+                  </span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/60">
                   <span className="text-blue-400 block text-[11px]">Emails Dispatched</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block">{dailyReport.message_send_to_user} sent</span>
+                  <span className="text-sm font-bold text-white mt-0.5 block">
+                    {(telegramSummary?.message_send_to_user ?? dailyReport?.message_send_to_user) || 0} sent
+                  </span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/60">
                   <span className="text-purple-400 block text-[11px]">Client Replies</span>
-                  <span className="text-sm font-bold text-white mt-0.5 block">{dailyReport.reply_back_by_user} received</span>
+                  <span className="text-sm font-bold text-white mt-0.5 block">
+                    {(telegramSummary?.reply_back_by_user ?? dailyReport?.reply_back_by_user) || 0} received
+                  </span>
                 </div>
               </div>
 
               {reportFeedback && (
-                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-mono">
+                <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-300 text-[11px] font-mono">
                   {reportFeedback}
+                </div>
+              )}
+
+              {activeChannel === 'telegram' && (
+                <div className="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800/60 text-[11px] text-slate-400 space-y-1">
+                  <span className="font-semibold text-slate-200 block">Setup (1 Minute):</span>
+                  <span>1. Telegram me <b>@BotFather</b> search karke <b>/newbot</b> type karein.</span><br />
+                  <span>2. Bot token ko <b>.env</b> me paste karein: <code className="text-sky-300">TELEGRAM_BOT_TOKEN=...</code></span><br />
+                  <span>3. Apne bot ko khol kar <b>/start</b> dabayein, phir <b>Detect Chat ID</b> click karein!</span>
                 </div>
               )}
             </div>

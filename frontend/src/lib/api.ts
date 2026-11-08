@@ -186,3 +186,34 @@ export async function triggerSendWhatsAppReport(): Promise<{ status: string; mes
   return res.json();
 }
 
+export interface TelegramSummary {
+  date: string;
+  total_leads: number;
+  valid_leads: number;
+  invalid_leads: number;
+  message_send_to_user: number;
+  reply_back_by_user: number;
+  formatted_message: string;
+  has_bot_token: boolean;
+  has_chat_id: boolean;
+  chat_id: string;
+}
+
+export async function fetchTelegramSummary(): Promise<TelegramSummary> {
+  const res = await fetch(`${API_BASE}/api/reports/telegram-summary`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch telegram summary');
+  return res.json();
+}
+
+export async function triggerSendTelegramReport(): Promise<{ status: string; message: string; metrics: TelegramSummary }> {
+  const res = await fetch(`${API_BASE}/api/reports/send-telegram`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to send telegram report');
+  return res.json();
+}
+
+export async function autoDetectTelegramChatId(): Promise<{ status: string; chat_id?: string; message?: string }> {
+  const res = await fetch(`${API_BASE}/api/reports/auto-detect-telegram-chat`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to auto-detect chat id');
+  return res.json();
+}
+

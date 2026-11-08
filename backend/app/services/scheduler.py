@@ -128,13 +128,20 @@ async def scheduled_harvester_job():
             logger.info("Starting automated outbound SMTP dispatch with anti-ban delay...")
             await scheduled_outbound_queue_dispatcher()
 
-        # Step 4: Dispatch daily WhatsApp & email summary
+        # Step 4: Dispatch daily WhatsApp, Telegram & email summary
         try:
             from app.services.whatsapp_notifier import generate_and_send_daily_report
             await generate_and_send_daily_report()
             logger.info("Dispatched post-outreach WhatsApp daily summary.")
         except Exception as we:
             logger.warning(f"Could not dispatch post-outreach WhatsApp summary: {we}")
+
+        try:
+            from app.services.telegram_notifier import generate_and_send_telegram_report
+            await generate_and_send_telegram_report()
+            logger.info("Dispatched post-outreach Telegram daily summary.")
+        except Exception as te:
+            logger.warning(f"Could not dispatch post-outreach Telegram summary: {te}")
 
     except Exception as e:
         logger.error(f"Error in autonomous pipeline: {e}")
@@ -150,7 +157,14 @@ async def scheduled_imap_poller_job():
         logger.error(f"Scheduled IMAP poller failed: {e}")
 
 async def scheduled_whatsapp_report_job():
-    """Daily summary dispatcher sending activity metrics to WhatsApp & email."""
+    """Daily summary dispatcher sending activity metrics to Telegram, WhatsApp & email."""
+    try:
+        from app.services.telegram_notifier import generate_and_send_telegram_report
+        tres = await generate_and_send_telegram_report()
+        logger.info(f"Scheduled Telegram report status: {tres.get('telegram_status')}")
+    except Exception as te:
+        logger.warning(f"Scheduled Telegram report notice: {te}")
+
     try:
         from app.services.whatsapp_notifier import generate_and_send_daily_report
         res = await generate_and_send_daily_report()
