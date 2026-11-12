@@ -7,7 +7,6 @@ from app.config import settings
 from app.database import engine, Base, SessionLocal
 from app.models import Lead, SystemLog
 from app.services.scheduler import start_scheduler, stop_scheduler
-from app.services.scraper import get_rich_curated_seed_leads
 from app.api.leads import router as leads_router
 from app.api.analytics import router as analytics_router
 from app.api.settings import router as settings_router
@@ -25,20 +24,6 @@ async def lifespan(app: FastAPI):
     # Startup: Create tables
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables verified/created.")
-
-    # Seed demo leads if DB is brand new
-    try:
-        db = SessionLocal()
-        if db.query(Lead).count() == 0:
-            logger.info("Seeding initial high-intent leads across Reddit, LinkedIn, and Web...")
-            seeds = get_rich_curated_seed_leads()
-            for s in seeds:
-                db.add(Lead(**s))
-            db.commit()
-            logger.info(f"Seeded {len(seeds)} leads.")
-        db.close()
-    except Exception as e:
-        logger.warning(f"Initial seed notice: {e}")
 
     # Start APScheduler (Daily Harvester, Timezone Dispatcher, IMAP Poller)
     try:
