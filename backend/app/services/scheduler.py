@@ -125,23 +125,8 @@ async def scheduled_harvester_job():
 
         # Step 3: Automatically trigger outbound dispatch if autonomous
         if autonomous and auto_scheduled_count > 0:
-            logger.info("Starting automated outbound SMTP dispatch with anti-ban delay...")
+            logger.info("Starting automated outbound dispatch with anti-ban delay...")
             await scheduled_outbound_queue_dispatcher()
-
-        # Step 4: Dispatch daily WhatsApp, Telegram & email summary
-        try:
-            from app.services.whatsapp_notifier import generate_and_send_daily_report
-            await generate_and_send_daily_report()
-            logger.info("Dispatched post-outreach WhatsApp daily summary.")
-        except Exception as we:
-            logger.warning(f"Could not dispatch post-outreach WhatsApp summary: {we}")
-
-        try:
-            from app.services.telegram_notifier import generate_and_send_telegram_report
-            await generate_and_send_telegram_report()
-            logger.info("Dispatched post-outreach Telegram daily summary.")
-        except Exception as te:
-            logger.warning(f"Could not dispatch post-outreach Telegram summary: {te}")
 
     except Exception as e:
         logger.error(f"Error in autonomous pipeline: {e}")
