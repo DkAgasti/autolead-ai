@@ -84,6 +84,8 @@ class AppSettingsSchema(BaseModel):
     gemini_api_key: Optional[str] = None
     email_user: Optional[str] = None
     email_app_password: Optional[str] = None
+    brevo_api_key: Optional[str] = None
+    resend_api_key: Optional[str] = None
     smtp_host: Optional[str] = "smtp.gmail.com"
     smtp_port: Optional[int] = 465
     imap_host: Optional[str] = "imap.gmail.com"

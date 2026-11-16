@@ -29,6 +29,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     gemini_api_key: '',
     email_user: '',
     email_app_password: '',
+    brevo_api_key: '',
+    resend_api_key: '',
     smtp_host: 'smtp.gmail.com',
     smtp_port: 465,
     imap_host: 'imap.gmail.com',
@@ -223,6 +225,48 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   placeholder="abcd efgh ijkl mnop"
                   className="w-full px-3 py-2 bg-slate-900 rounded-xl border border-slate-800 text-slate-200 font-mono focus:outline-none focus:border-blue-500"
                 />
+              </div>
+            </div>
+
+            {/* Cloud HTTPS Dispatcher (Brevo / Resend) */}
+            <div className="p-3 rounded-xl bg-purple-950/20 border border-purple-800/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-purple-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                  Cloud HTTPS Dispatch API (Bypasses Railway Port 465/587 Blocks)
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-200 font-medium border border-purple-700/50">
+                  Recommended for Cloud
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400">
+                Railway blocks outbound raw SMTP ports. Setting a Brevo or Resend API key routes emails over HTTPS (Port 443) seamlessly.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-purple-300 uppercase">
+                    Brevo API Key (300 Free/Day)
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.brevo_api_key || ''}
+                    onChange={(e) => handleChange('brevo_api_key', e.target.value)}
+                    placeholder="xkeysib-..."
+                    className="w-full px-3 py-1.5 bg-slate-900 rounded-lg border border-purple-900/50 text-slate-200 font-mono text-xs focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-purple-300 uppercase">
+                    Resend API Key (Optional)
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.resend_api_key || ''}
+                    onChange={(e) => handleChange('resend_api_key', e.target.value)}
+                    placeholder="re_..."
+                    className="w-full px-3 py-1.5 bg-slate-900 rounded-lg border border-purple-900/50 text-slate-200 font-mono text-xs focus:outline-none focus:border-purple-500"
+                  />
+                </div>
               </div>
             </div>
 

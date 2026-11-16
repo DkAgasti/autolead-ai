@@ -67,6 +67,8 @@ export interface AppSettings {
   gemini_api_key?: string;
   email_user?: string;
   email_app_password?: string;
+  brevo_api_key?: string;
+  resend_api_key?: string;
   smtp_host?: string;
   smtp_port?: number;
   imap_host?: string;

@@ -82,15 +82,15 @@ async def send_test_email(db: Session = Depends(get_db)):
         return {"status": "error", "message": "EMAIL_USER is not configured in .env"}
 
     recipient = creds["user"]
+    active_protocol = "Brevo HTTPS API (Port 443)" if creds.get("brevo_api_key") else ("Resend HTTPS API (Port 443)" if creds.get("resend_api_key") else f"Direct Native SMTP ({creds.get('host')}:{creds.get('port')})")
     subject = f"AutoLead AI Test: Outreach Verification for {creds.get('sender_name', 'CodePro')}"
     body = (
         f"Hi there,\n\n"
-        f"This is a verified test email sent directly via Google SMTP (smtp.gmail.com:465 SSL) "
-        f"using your configured App Password.\n\n"
+        f"This is a verified test email sent via {active_protocol}.\n\n"
         f"Your AutoLead AI cold outreach engine is connected and ready to send pitches.\n\n"
         f"Sender: {creds.get('sender_name')}\n"
         f"Recipient: {recipient}\n"
-        f"Protocol: Direct Native smtplib (No 3rd party APIs)\n\n"
+        f"Protocol: {active_protocol}\n\n"
         f"Best regards,\nAutoLead AI Agent"
     )
 

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     IMAP_PORT: int = int(os.getenv("IMAP_PORT", "993"))
     SENDER_NAME: str = os.getenv("SENDER_NAME", "Alex Rivera")
     
+    # HTTPS Email APIs (For Cloud Platforms like Railway where Port 465/587 is blocked)
+    BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    
     # Pitch defaults
     PORTFOLIO_URL: str = os.getenv("PORTFOLIO_URL", "https://alexrivera.dev")
     CALENDLY_URL: str = os.getenv("CALENDLY_URL", "https://calendly.com/alexrivera/30min")

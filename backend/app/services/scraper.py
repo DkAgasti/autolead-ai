@@ -299,22 +299,25 @@ async def run_harvester(db=None) -> Dict[str, Any]:
             seed_items = get_rich_curated_seed_leads()
             new_items.extend(seed_items)
 
+        seen_urls = set(x[0] for x in db.query(Lead.source_url).filter(Lead.source_url.isnot(None)).all())
+        seen_titles = set(x[0] for x in db.query(Lead.title).filter(Lead.title.isnot(None)).all())
+
         added_count = 0
         skipped_count = 0
 
         for item in new_items:
-            # Deduplicate by source_url or exact title
-            existing = None
-            if item.get("source_url"):
-                existing = db.query(Lead).filter(Lead.source_url == item["source_url"]).first()
-            if not existing:
-                existing = db.query(Lead).filter(Lead.title == item["title"]).first()
+            source_url = item.get("source_url")
+            title = item.get("title")
 
-            if not existing:
+            if (source_url and source_url in seen_urls) or (title and title in seen_titles):
+                skipped_count += 1
+                continue
+
+            try:
                 lead = Lead(
                     source=item["source"],
-                    source_url=item.get("source_url"),
-                    title=item["title"],
+                    source_url=source_url,
+                    title=title,
                     raw_text=item["raw_text"],
                     author_id=item.get("author_id"),
                     email=item.get("email"),
@@ -326,11 +329,16 @@ async def run_harvester(db=None) -> Dict[str, Any]:
                     updated_at=datetime.datetime.utcnow()
                 )
                 db.add(lead)
+                db.commit()
+                if source_url:
+                    seen_urls.add(source_url)
+                if title:
+                    seen_titles.add(title)
                 added_count += 1
-            else:
+            except Exception as insert_err:
+                db.rollback()
+                logger.warning(f"Skipping lead due to insert error: {insert_err}")
                 skipped_count += 1
-
-        db.commit()
 
         log = SystemLog(
             level="SUCCESS" if added_count > 0 else "INFO",

@@ -36,10 +36,18 @@ def get_settings_values(db: Session = Depends(get_db)):
     email_app_pw = get_db_setting(db, "email_app_password", settings.EMAIL_APP_PASSWORD)
     masked_pw = "••••••••••••••••" if email_app_pw else ""
 
+    brevo_key = get_db_setting(db, "brevo_api_key", settings.BREVO_API_KEY)
+    masked_brevo = brevo_key[:4] + "..." + brevo_key[-4:] if len(brevo_key) > 8 else ("***" if brevo_key else "")
+
+    resend_key = get_db_setting(db, "resend_api_key", settings.RESEND_API_KEY)
+    masked_resend = resend_key[:4] + "..." + resend_key[-4:] if len(resend_key) > 8 else ("***" if resend_key else "")
+
     return AppSettingsSchema(
         gemini_api_key=masked_key,
         email_user=email_user,
         email_app_password=masked_pw,
+        brevo_api_key=masked_brevo,
+        resend_api_key=masked_resend,
         smtp_host=get_db_setting(db, "smtp_host", settings.SMTP_HOST),
         smtp_port=int(get_db_setting(db, "smtp_port", str(settings.SMTP_PORT))),
         imap_host=get_db_setting(db, "imap_host", settings.IMAP_HOST),
@@ -59,8 +67,8 @@ def update_settings_values(payload: Dict[str, Any], db: Session = Depends(get_db
     for key, val in payload.items():
         if val is None:
             continue
-        # Avoid overwriting password with masked bullets
-        if key in ["email_app_password", "gemini_api_key"] and ("•••" in str(val) or "..." in str(val)):
+        # Avoid overwriting secrets with masked bullets or ellipsis
+        if key in ["email_app_password", "gemini_api_key", "brevo_api_key", "resend_api_key"] and ("•••" in str(val) or "..." in str(val)):
             continue
         set_db_setting(db, key, str(val))
     return {"status": "success", "message": "Settings updated successfully"}
